@@ -1072,6 +1072,12 @@ int xhci_hub_status_data(struct usb_hcd *hcd, char *buf)
 	 */
 	status = bus_state->resuming_ports;
 
+	/*
+	 * Inform the usbcore about resume-in-progress by returning
+	 * a non-zero value even if there are no status changes.
+	 */
+	status = bus_state->resuming_ports;
+
 	mask = PORT_CSC | PORT_PEC | PORT_OCC | PORT_PLC | PORT_WRC | PORT_CEC;
 
 	spin_lock_irqsave(&xhci->lock, flags);
@@ -1110,10 +1116,10 @@ int xhci_bus_suspend(struct usb_hcd *hcd)
 	spin_lock_irqsave(&xhci->lock, flags);
 
 	if (hcd->self.root_hub->do_remote_wakeup) {
-		if (bus_state->resuming_ports ||	/* USB2 */
-		    bus_state->port_remote_wakeup) {	/* USB3 */
+		if (bus_state->resuming_ports) {
 			spin_unlock_irqrestore(&xhci->lock, flags);
-			xhci_dbg(xhci, "suspend failed because a port is resuming\n");
+			xhci_dbg(xhci, "suspend failed because "
+						"a port is resuming\n");
 			return -EBUSY;
 		}
 	}
