@@ -335,9 +335,9 @@ void ceph_put_mds_session(struct ceph_mds_session *s)
 	     atomic_read(&s->s_ref), atomic_read(&s->s_ref)-1);
 	if (atomic_dec_and_test(&s->s_ref)) {
 		if (s->s_auth.authorizer)
-			ceph_auth_destroy_authorizer(
-				s->s_mdsc->fsc->client->monc.auth,
-				s->s_auth.authorizer);
+		     s->s_mdsc->fsc->client->monc.auth->ops->destroy_authorizer(
+			     s->s_mdsc->fsc->client->monc.auth,
+			     s->s_auth.authorizer);
 		kfree(s);
 	}
 }
@@ -3404,7 +3404,25 @@ static struct ceph_auth_handshake *get_authorizer(struct ceph_connection *con,
 	struct ceph_mds_session *s = con->private;
 	struct ceph_mds_client *mdsc = s->s_mdsc;
 	struct ceph_auth_client *ac = mdsc->fsc->client->monc.auth;
-	struct ceph_auth_handshake *auth = &s->s_auth;
+	int ret = 0;
+
+	if (force_new && s->s_auth.authorizer) {
+		ac->ops->destroy_authorizer(ac, s->s_auth.authorizer);
+		s->s_auth.authorizer = NULL;
+	}
+	if (s->s_auth.authorizer == NULL) {
+		if (ac->ops->create_authorizer) {
+			ret = ac->ops->create_authorizer(
+				ac, CEPH_ENTITY_TYPE_MDS,
+				&s->s_auth.authorizer,
+				&s->s_auth.authorizer_buf,
+				&s->s_auth.authorizer_buf_len,
+				&s->s_auth.authorizer_reply_buf,
+				&s->s_auth.authorizer_reply_buf_len);
+			if (ret)
+				return ret;
+		}
+	}
 
 	if (force_new && auth->authorizer) {
 		ceph_auth_destroy_authorizer(ac, auth->authorizer);
@@ -3422,8 +3440,11 @@ static struct ceph_auth_handshake *get_authorizer(struct ceph_connection *con,
 			return ERR_PTR(ret);
 	}
 	*proto = ac->protocol;
-
-	return auth;
+	*buf = s->s_auth.authorizer_buf;
+	*len = s->s_auth.authorizer_buf_len;
+	*reply_buf = s->s_auth.authorizer_reply_buf;
+	*reply_len = s->s_auth.authorizer_reply_buf_len;
+	return 0;
 }
 
 
@@ -3433,7 +3454,7 @@ static int verify_authorizer_reply(struct ceph_connection *con, int len)
 	struct ceph_mds_client *mdsc = s->s_mdsc;
 	struct ceph_auth_client *ac = mdsc->fsc->client->monc.auth;
 
-	return ceph_auth_verify_authorizer_reply(ac, s->s_auth.authorizer, len);
+	return ac->ops->verify_authorizer_reply(ac, s->s_auth.authorizer, len);
 }
 
 static int invalidate_authorizer(struct ceph_connection *con)

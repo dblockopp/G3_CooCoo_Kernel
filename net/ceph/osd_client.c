@@ -671,7 +671,8 @@ static void put_osd(struct ceph_osd *osd)
 	if (atomic_dec_and_test(&osd->o_ref) && osd->o_auth.authorizer) {
 		struct ceph_auth_client *ac = osd->o_osdc->client->monc.auth;
 
-		ceph_auth_destroy_authorizer(ac, osd->o_auth.authorizer);
+		if (osd->o_auth.authorizer)
+			ac->ops->destroy_authorizer(ac, osd->o_auth.authorizer);
 		kfree(osd);
 	}
 }
@@ -2143,24 +2144,27 @@ static struct ceph_auth_handshake *get_authorizer(struct ceph_connection *con,
 	struct ceph_auth_client *ac = osdc->client->monc.auth;
 	struct ceph_auth_handshake *auth = &o->o_auth;
 
-	if (force_new && auth->authorizer) {
-		ceph_auth_destroy_authorizer(ac, auth->authorizer);
-		auth->authorizer = NULL;
+	if (force_new && o->o_auth.authorizer) {
+		ac->ops->destroy_authorizer(ac, o->o_auth.authorizer);
+		o->o_auth.authorizer = NULL;
 	}
-	if (!auth->authorizer) {
-		int ret = ceph_auth_create_authorizer(ac, CEPH_ENTITY_TYPE_OSD,
-						      auth);
-		if (ret)
-			return ERR_PTR(ret);
-	} else {
-		int ret = ceph_auth_update_authorizer(ac, CEPH_ENTITY_TYPE_OSD,
-						     auth);
+	if (o->o_auth.authorizer == NULL) {
+		ret = ac->ops->create_authorizer(
+			ac, CEPH_ENTITY_TYPE_OSD,
+			&o->o_auth.authorizer,
+			&o->o_auth.authorizer_buf,
+			&o->o_auth.authorizer_buf_len,
+			&o->o_auth.authorizer_reply_buf,
+			&o->o_auth.authorizer_reply_buf_len);
 		if (ret)
 			return ERR_PTR(ret);
 	}
 	*proto = ac->protocol;
-
-	return auth;
+	*buf = o->o_auth.authorizer_buf;
+	*len = o->o_auth.authorizer_buf_len;
+	*reply_buf = o->o_auth.authorizer_reply_buf;
+	*reply_len = o->o_auth.authorizer_reply_buf_len;
+	return 0;
 }
 
 
@@ -2170,7 +2174,7 @@ static int verify_authorizer_reply(struct ceph_connection *con, int len)
 	struct ceph_osd_client *osdc = o->o_osdc;
 	struct ceph_auth_client *ac = osdc->client->monc.auth;
 
-	return ceph_auth_verify_authorizer_reply(ac, o->o_auth.authorizer, len);
+	return ac->ops->verify_authorizer_reply(ac, o->o_auth.authorizer, len);
 }
 
 static int invalidate_authorizer(struct ceph_connection *con)
