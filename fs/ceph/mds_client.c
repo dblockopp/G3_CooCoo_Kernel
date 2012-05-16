@@ -3399,25 +3399,24 @@ out:
  * managed separately.  Caller must *not* attempt to free it.
  */
 static struct ceph_auth_handshake *get_authorizer(struct ceph_connection *con,
-					int *proto, int force_new)
+					void **buf, int *len, int *proto,
+					void **reply_buf, int *reply_len,
+					int force_new)
 {
 	struct ceph_mds_session *s = con->private;
 	struct ceph_mds_client *mdsc = s->s_mdsc;
 	struct ceph_auth_client *ac = mdsc->fsc->client->monc.auth;
 	struct ceph_auth_handshake *auth = &s->s_auth;
-	int ret = 0;
 
 	if (force_new && auth->authorizer) {
 		ac->ops->destroy_authorizer(ac, auth->authorizer);
 		auth->authorizer = NULL;
 	}
-	if (auth->authorizer == NULL) {
-		if (ac->ops->create_authorizer) {
-			ret = ac->ops->create_authorizer(ac,
-						CEPH_ENTITY_TYPE_MDS, auth);
-			if (ret)
-				return ret;
-		}
+	if (!auth->authorizer && ac->ops && ac->ops->create_authorizer) {
+		int ret = ac->ops->create_authorizer(ac, CEPH_ENTITY_TYPE_MDS,
+							auth);
+		if (ret)
+			return ERR_PTR(ret);
 	}
 
 	if (force_new && auth->authorizer) {
@@ -3441,7 +3440,7 @@ static struct ceph_auth_handshake *get_authorizer(struct ceph_connection *con,
 	*reply_buf = auth->authorizer_reply_buf;
 	*reply_len = auth->authorizer_reply_buf_len;
 
-	return 0;
+	return auth;
 }
 
 

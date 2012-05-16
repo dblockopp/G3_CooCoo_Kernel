@@ -836,6 +836,9 @@ static void prepare_write_keepalive(struct ceph_connection *con)
 static struct ceph_auth_handshake *get_connect_authorizer(struct ceph_connection *con,
 						int *auth_proto)
 {
+	void *auth_buf;
+	int auth_len;
+	int auth_protocol;
 	struct ceph_auth_handshake *auth;
 
 	if (!con->ops->get_authorizer) {
@@ -846,13 +849,26 @@ static struct ceph_auth_handshake *get_connect_authorizer(struct ceph_connection
 
 	/* Can't hold the mutex while getting authorizer */
 	mutex_unlock(&con->mutex);
-	auth = con->ops->get_authorizer(con, auth_proto, con->auth_retry);
+
+	auth_buf = NULL;
+	auth_len = 0;
+	auth_protocol = CEPH_AUTH_UNKNOWN;
+	auth = con->ops->get_authorizer(con, &auth_buf, &auth_len,
+				&auth_protocol, &con->auth_reply_buf,
+				&con->auth_reply_buf_len, con->auth_retry);
 	mutex_lock(&con->mutex);
 
 	if (IS_ERR(auth))
-		return auth;
-	if (con->state != CON_STATE_NEGOTIATING)
-		return ERR_PTR(-EAGAIN);
+		return PTR_ERR(auth);
+
+	if (test_bit(CLOSED, &con->state) || test_bit(OPENING, &con->state))
+		return -EAGAIN;
+
+	con->out_connect.authorizer_protocol = cpu_to_le32(auth_protocol);
+	con->out_connect.authorizer_len = cpu_to_le32(auth_len);
+
+	if (auth_len)
+		ceph_con_out_kvec_add(con, auth_len, auth_buf);
 
 	con->auth_reply_buf = auth->authorizer_reply_buf;
 	con->auth_reply_buf_len = auth->authorizer_reply_buf_len;
