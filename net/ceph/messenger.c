@@ -463,7 +463,9 @@ void ceph_con_close(struct ceph_connection *con)
 	mutex_lock(&con->mutex);
 	dout("con_close %p peer %s\n", con,
 	     ceph_pr_addr(&con->peer_addr.in_addr));
-	set_bit(CLOSED, &con->state);  /* in case there's queued work */
+	clear_bit(NEGOTIATING, &con->state);
+	clear_bit(CONNECTING, &con->state);
+	clear_bit(CONNECTED, &con->state);
 	clear_bit(STANDBY, &con->state);  /* avoid connect_seq bump */
 	clear_bit(LOSSYTX, &con->flags);  /* so we retry next connect */
 	clear_bit(KEEPALIVE_PENDING, &con->flags);
@@ -1574,10 +1576,9 @@ static int process_connect(struct ceph_connection *con)
 			reset_connection(con);
 			return -1;
 		}
-
-		WARN_ON(con->state != CON_STATE_NEGOTIATING);
-		con->state = CON_STATE_OPEN;
-		con->auth_retry = 0;    /* we authenticated; clear flag */
+		clear_bit(NEGOTIATING, &con->state);
+		clear_bit(CONNECTING, &con->state);
+		set_bit(CONNECTED, &con->state);
 		con->peer_global_seq = le32_to_cpu(con->in_reply.global_seq);
 		con->connect_seq++;
 		con->peer_features = server_feat;
@@ -2135,8 +2136,8 @@ more:
 			prepare_read_ack(con);
 			break;
 		case CEPH_MSGR_TAG_CLOSE:
-			con_close_socket(con);
-			con->state = CON_STATE_CLOSED;
+			clear_bit(CONNECTED, &con->state);
+			set_bit(CLOSED, &con->state);   /* fixme */
 			goto out;
 		default:
 			goto bad_tag;
@@ -2242,6 +2243,18 @@ static void con_work(struct work_struct *work)
 
 	mutex_lock(&con->mutex);
 restart:
+	if (test_and_clear_bit(SOCK_CLOSED, &con->flags)) {
+		if (test_and_clear_bit(CONNECTED, &con->state))
+			con->error_msg = "socket closed";
+		else if (test_and_clear_bit(CONNECTING, &con->state)) {
+			clear_bit(NEGOTIATING, &con->state);
+			con->error_msg = "connection failed";
+		} else {
+			con->error_msg = "unrecognized con state";
+		}
+		goto fault;
+	}
+
 	if (test_and_clear_bit(BACKOFF, &con->flags)) {
 		dout("con_work %p backing off\n", con);
 		if (queue_delayed_work(ceph_msgr_wq, &con->work,
