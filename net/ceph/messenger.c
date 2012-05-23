@@ -29,73 +29,13 @@
  * the sender.
  */
 
-/*
- * We track the state of the socket on a given connection using
- * values defined below.  The transition to a new socket state is
- * handled by a function which verifies we aren't coming from an
- * unexpected state.
- *
- *      --------
- *      | NEW* |  transient initial state
- *      --------
- *          | con_sock_state_init()
- *          v
- *      ----------
- *      | CLOSED |  initialized, but no socket (and no
- *      ----------  TCP connection)
- *       ^      \
- *       |       \ con_sock_state_connecting()
- *       |        ----------------------
- *       |                              \
- *       + con_sock_state_closed()       \
- *       |+---------------------------    \
- *       | \                          \    \
- *       |  -----------                \    \
- *       |  | CLOSING |  socket event;  \    \
- *       |  -----------  await close     \    \
- *       |       ^                        \   |
- *       |       |                         \  |
- *       |       + con_sock_state_closing() \ |
- *       |      / \                         | |
- *       |     /   ---------------          | |
- *       |    /                   \         v v
- *       |   /                    --------------
- *       |  /    -----------------| CONNECTING |  socket created, TCP
- *       |  |   /                 --------------  connect initiated
- *       |  |   | con_sock_state_connected()
- *       |  |   v
- *      -------------
- *      | CONNECTED |  TCP connection established
- *      -------------
- *
- * State values for ceph_connection->sock_state; NEW is assumed to be 0.
- */
+/* State values for ceph_connection->sock_state; NEW is assumed to be 0 */
 
 #define CON_SOCK_STATE_NEW		0	/* -> CLOSED */
 #define CON_SOCK_STATE_CLOSED		1	/* -> CONNECTING */
 #define CON_SOCK_STATE_CONNECTING	2	/* -> CONNECTED or -> CLOSING */
 #define CON_SOCK_STATE_CONNECTED	3	/* -> CLOSING or -> CLOSED */
 #define CON_SOCK_STATE_CLOSING		4	/* -> CLOSED */
-
-/*
- * connection states
- */
-#define CON_STATE_CLOSED        1  /* -> PREOPEN */
-#define CON_STATE_PREOPEN       2  /* -> CONNECTING, CLOSED */
-#define CON_STATE_CONNECTING    3  /* -> NEGOTIATING, CLOSED */
-#define CON_STATE_NEGOTIATING   4  /* -> OPEN, CLOSED */
-#define CON_STATE_OPEN          5  /* -> STANDBY, CLOSED */
-#define CON_STATE_STANDBY       6  /* -> PREOPEN, CLOSED */
-
-/*
- * ceph_connection flag bits
- */
-#define CON_FLAG_LOSSYTX           0  /* we can close channel or drop
-				       * messages on errors */
-#define CON_FLAG_KEEPALIVE_PENDING 1  /* we need to send a keepalive */
-#define CON_FLAG_WRITE_PENDING	   2  /* we have data ready to send */
-#define CON_FLAG_SOCK_CLOSED	   3  /* socket state changed to closed */
-#define CON_FLAG_BACKOFF           4  /* need to retry queuing delayed work */
 
 /* static tag bytes (protocol control messages) */
 static char tag_msg = CEPH_MSGR_TAG_MSG;
@@ -224,8 +164,6 @@ static void con_sock_state_init(struct ceph_connection *con)
 	old_state = atomic_xchg(&con->sock_state, CON_SOCK_STATE_CLOSED);
 	if (WARN_ON(old_state != CON_SOCK_STATE_NEW))
 		printk("%s: unexpected old state %d\n", __func__, old_state);
-	dout("%s con %p sock %d -> %d\n", __func__, con, old_state,
-	     CON_SOCK_STATE_CLOSED);
 }
 
 static void con_sock_state_connecting(struct ceph_connection *con)
@@ -235,8 +173,6 @@ static void con_sock_state_connecting(struct ceph_connection *con)
 	old_state = atomic_xchg(&con->sock_state, CON_SOCK_STATE_CONNECTING);
 	if (WARN_ON(old_state != CON_SOCK_STATE_CLOSED))
 		printk("%s: unexpected old state %d\n", __func__, old_state);
-	dout("%s con %p sock %d -> %d\n", __func__, con, old_state,
-	     CON_SOCK_STATE_CONNECTING);
 }
 
 static void con_sock_state_connected(struct ceph_connection *con)
@@ -246,8 +182,6 @@ static void con_sock_state_connected(struct ceph_connection *con)
 	old_state = atomic_xchg(&con->sock_state, CON_SOCK_STATE_CONNECTED);
 	if (WARN_ON(old_state != CON_SOCK_STATE_CONNECTING))
 		printk("%s: unexpected old state %d\n", __func__, old_state);
-	dout("%s con %p sock %d -> %d\n", __func__, con, old_state,
-	     CON_SOCK_STATE_CONNECTED);
 }
 
 static void con_sock_state_closing(struct ceph_connection *con)
@@ -259,8 +193,6 @@ static void con_sock_state_closing(struct ceph_connection *con)
 			old_state != CON_SOCK_STATE_CONNECTED &&
 			old_state != CON_SOCK_STATE_CLOSING))
 		printk("%s: unexpected old state %d\n", __func__, old_state);
-	dout("%s con %p sock %d -> %d\n", __func__, con, old_state,
-	     CON_SOCK_STATE_CLOSING);
 }
 
 static void con_sock_state_closed(struct ceph_connection *con)
@@ -269,12 +201,8 @@ static void con_sock_state_closed(struct ceph_connection *con)
 
 	old_state = atomic_xchg(&con->sock_state, CON_SOCK_STATE_CLOSED);
 	if (WARN_ON(old_state != CON_SOCK_STATE_CONNECTED &&
-		    old_state != CON_SOCK_STATE_CLOSING &&
-		    old_state != CON_SOCK_STATE_CONNECTING &&
-		    old_state != CON_SOCK_STATE_CLOSED))
+			old_state != CON_SOCK_STATE_CLOSING))
 		printk("%s: unexpected old state %d\n", __func__, old_state);
-	dout("%s con %p sock %d -> %d\n", __func__, con, old_state,
-	     CON_SOCK_STATE_CLOSED);
 }
 
 /*
@@ -332,6 +260,7 @@ static void ceph_sock_state_change(struct sock *sk)
 		dout("%s TCP_CLOSE\n", __func__);
 	case TCP_CLOSE_WAIT:
 		dout("%s TCP_CLOSE_WAIT\n", __func__);
+		con_sock_state_closing(con);
 		if (test_and_set_bit(SOCK_CLOSED, &con->flags) == 0) {
 			if (test_bit(CONNECTING, &con->state))
 				con->error_msg = "connection failed";
@@ -408,6 +337,8 @@ static int ceph_tcp_connect(struct ceph_connection *con)
 		return ret;
 	}
 	con->sock = sock;
+	con_sock_state_connecting(con);
+
 	return 0;
 }
 
@@ -466,20 +397,13 @@ static int con_close_socket(struct ceph_connection *con)
 	int rc = 0;
 
 	dout("con_close_socket on %p sock %p\n", con, con->sock);
-	if (con->sock) {
-		rc = con->sock->ops->shutdown(con->sock, SHUT_RDWR);
-		sock_release(con->sock);
-		con->sock = NULL;
-	}
-
-	/*
-	 * Forcibly clear the SOCK_CLOSED flag.  It gets set
-	 * independent of the connection mutex, and we could have
-	 * received a socket close event before we had the chance to
-	 * shut the socket down.
-	 */
-	clear_bit(CON_FLAG_SOCK_CLOSED, &con->flags);
-
+	if (!con->sock)
+		return 0;
+	set_bit(SOCK_CLOSED, &con->state);
+	rc = con->sock->ops->shutdown(con->sock, SHUT_RDWR);
+	sock_release(con->sock);
+	con->sock = NULL;
+	clear_bit(SOCK_CLOSED, &con->state);
 	con_sock_state_closed(con);
 	return rc;
 }

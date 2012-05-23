@@ -143,6 +143,9 @@ struct ceph_connection {
 
 	atomic_t sock_state;
 	struct socket *sock;
+	struct ceph_entity_addr peer_addr; /* peer address */
+	struct ceph_entity_addr peer_addr_for_me;
+
 	unsigned long flags;
 	unsigned long state;
 	const char *error_msg;  /* error message, if any */
