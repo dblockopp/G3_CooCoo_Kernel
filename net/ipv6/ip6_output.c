@@ -1185,7 +1185,7 @@ static void ip6_append_data_mtu(int *mtu,
 			 * this fragment is not first, the headers
 			 * space is regarded as data space.
 			 */
-			 *mtu = dst_mtu(rt->dst.path);
+			*mtu = dst_mtu(rt->dst.path);
 		}
 		*maxfraglen = ((*mtu - fragheaderlen) & ~7)
 			      + fragheaderlen - sizeof(struct frag_hdr);
