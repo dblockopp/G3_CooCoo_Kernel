@@ -788,6 +788,13 @@ int ceph_monc_init(struct ceph_mon_client *monc, struct ceph_client *cl)
 		goto out;
 
 	/* connection */
+	monc->con = kmalloc(sizeof(*monc->con), GFP_KERNEL);
+	if (!monc->con)
+		goto out_monmap;
+	ceph_con_init(&monc->client->msgr, monc->con);
+	monc->con->private = monc;
+	monc->con->ops = &mon_con_ops;
+
 	/* authentication */
 	monc->auth = ceph_auth_init(cl->options->name,
 				    cl->options->key);
