@@ -106,7 +106,7 @@ static void __send_prepared_auth_request(struct ceph_mon_client *monc, int len)
 	monc->pending_auth = 1;
 	monc->m_auth->front.iov_len = len;
 	monc->m_auth->hdr.front_len = cpu_to_le32(len);
-	ceph_msg_revoke(monc->m_auth);
+	ceph_con_revoke(&monc->con, monc->m_auth);
 	ceph_msg_get(monc->m_auth);  /* keep our ref */
 	ceph_con_send(&monc->con, monc->m_auth);
 }
@@ -117,10 +117,7 @@ static void __send_prepared_auth_request(struct ceph_mon_client *monc, int len)
 static void __close_session(struct ceph_mon_client *monc)
 {
 	dout("__close_session closing mon%d\n", monc->cur_mon);
-	ceph_msg_revoke(monc->m_auth);
-	ceph_msg_revoke_incoming(monc->m_auth_reply);
-	ceph_msg_revoke(monc->m_subscribe);
-	ceph_msg_revoke_incoming(monc->m_subscribe_ack);
+	ceph_con_revoke(&monc->con, monc->m_auth);
 	ceph_con_close(&monc->con);
 	monc->cur_mon = -1;
 	monc->pending_auth = 0;
@@ -145,8 +142,9 @@ static int __open_session(struct ceph_mon_client *monc)
 		monc->want_next_osdmap = !!monc->want_next_osdmap;
 
 		dout("open_session mon%d opening\n", monc->cur_mon);
+		monc->con.peer_name.type = CEPH_ENTITY_TYPE_MON;
+		monc->con.peer_name.num = cpu_to_le64(monc->cur_mon);
 		ceph_con_open(&monc->con,
-			      CEPH_ENTITY_TYPE_MON, monc->cur_mon,
 			      &monc->monmap->mon_inst[monc->cur_mon].addr);
 
 		/* initiatiate authentication handshake */
@@ -228,7 +226,7 @@ static void __send_subscribe(struct ceph_mon_client *monc)
 
 		msg->front.iov_len = p - msg->front.iov_base;
 		msg->hdr.front_len = cpu_to_le32(msg->front.iov_len);
-		ceph_msg_revoke(msg);
+		ceph_con_revoke(&monc->con, msg);
 		ceph_con_send(&monc->con, ceph_msg_get(msg));
 
 		monc->sub_sent = jiffies | 1;  /* never 0 */
@@ -711,8 +709,7 @@ static void __resend_generic_request(struct ceph_mon_client *monc)
 
 	for (p = rb_first(&monc->generic_request_tree); p; p = rb_next(p)) {
 		req = rb_entry(p, struct ceph_mon_generic_request, node);
-		ceph_msg_revoke(req->request);
-		ceph_msg_revoke_incoming(req->reply);
+		ceph_con_revoke(&monc->con, req->request);
 		ceph_con_send(&monc->con, ceph_msg_get(req->request));
 	}
 }
@@ -788,12 +785,9 @@ int ceph_monc_init(struct ceph_mon_client *monc, struct ceph_client *cl)
 		goto out;
 
 	/* connection */
-	monc->con = kmalloc(sizeof(*monc->con), GFP_KERNEL);
-	if (!monc->con)
-		goto out_monmap;
-	ceph_con_init(&monc->client->msgr, monc->con);
-	monc->con->private = monc;
-	monc->con->ops = &mon_con_ops;
+	ceph_con_init(&monc->client->msgr, &monc->con);
+	monc->con.private = monc;
+	monc->con.ops = &mon_con_ops;
 
 	/* authentication */
 	monc->auth = ceph_auth_init(cl->options->name,
@@ -869,6 +863,8 @@ void ceph_monc_stop(struct ceph_mon_client *monc)
 
 	mutex_lock(&monc->mutex);
 	__close_session(monc);
+
+	monc->con.private = NULL;
 
 	mutex_unlock(&monc->mutex);
 
