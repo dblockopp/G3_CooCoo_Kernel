@@ -141,9 +141,11 @@ static int __open_session(struct ceph_mon_client *monc)
 		monc->sub_renew_after = jiffies;  /* i.e., expired */
 		monc->want_next_osdmap = !!monc->want_next_osdmap;
 
+		ceph_con_init(&monc->con, monc, &mon_con_ops,
+			&monc->client->msgr,
+			CEPH_ENTITY_TYPE_MON, monc->cur_mon);
+
 		dout("open_session mon%d opening\n", monc->cur_mon);
-		monc->con.peer_name.type = CEPH_ENTITY_TYPE_MON;
-		monc->con.peer_name.num = cpu_to_le64(monc->cur_mon);
 		ceph_con_open(&monc->con,
 			      &monc->monmap->mon_inst[monc->cur_mon].addr);
 
