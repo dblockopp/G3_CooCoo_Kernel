@@ -1520,6 +1520,12 @@ static int process_banner(struct ceph_connection *con)
 	return 0;
 }
 
+static void fail_protocol(struct ceph_connection *con)
+{
+	reset_connection(con);
+	set_bit(CLOSED, &con->state);  /* in case there's queued work */
+}
+
 static int process_connect(struct ceph_connection *con)
 {
 	u64 sup_feat = con->msgr->supported_features;
