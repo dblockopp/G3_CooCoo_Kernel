@@ -416,7 +416,6 @@ static void ceph_msg_remove(struct ceph_msg *msg)
 {
 	list_del_init(&msg->list_head);
 	BUG_ON(msg->con == NULL);
-	msg->con->ops->put(msg->con);
 	msg->con = NULL;
 
 	ceph_msg_put(msg);
@@ -1823,8 +1822,12 @@ static int read_partial_message(struct ceph_connection *con)
 			con->in_seq++;
 			return 0;
 		}
+		if (!con->in_msg) {
+			con->error_msg =
+				"error allocating memory for incoming message";
+			return -ENOMEM;
+		}
 
-		BUG_ON(!con->in_msg);
 		BUG_ON(con->in_msg->con != con);
 		m = con->in_msg;
 		m->front.iov_len = 0;    /* haven't read it yet */
@@ -2442,18 +2445,8 @@ void ceph_con_send(struct ceph_connection *con, struct ceph_msg *msg)
 	msg->needs_out_seq = true;
 
 	mutex_lock(&con->mutex);
-
-	if (con->state == CON_STATE_CLOSED) {
-		dout("con_send %p closed, dropping %p\n", con, msg);
-		ceph_msg_put(msg);
-		mutex_unlock(&con->mutex);
-		return;
-	}
-
 	BUG_ON(msg->con != NULL);
-	msg->con = con->ops->get(con);
-	BUG_ON(msg->con == NULL);
-
+	msg->con = con;
 	BUG_ON(!list_empty(&msg->list_head));
 	list_add_tail(&msg->list_head, &con->out_queue);
 	dout("----- %p to %s%lld %d=%s len %d+%d+%d -----\n", msg,
@@ -2489,8 +2482,9 @@ void ceph_msg_revoke(struct ceph_msg *msg)
 		dout("%s %p msg %p - was on queue\n", __func__, con, msg);
 		list_del_init(&msg->list_head);
 		BUG_ON(msg->con == NULL);
-		msg->con->ops->put(msg->con);
 		msg->con = NULL;
+
+		ceph_msg_put(msg);
 		msg->hdr.seq = 0;
 
 		ceph_msg_put(msg);
@@ -2704,17 +2698,9 @@ static int ceph_con_in_msg_alloc(struct ceph_connection *con, int *skip)
 		mutex_unlock(&con->mutex);
 		msg = con->ops->alloc_msg(con, hdr, skip);
 		mutex_lock(&con->mutex);
-		if (con->state != CON_STATE_OPEN) {
-			if (msg)
-				ceph_msg_put(msg);
-			return -EAGAIN;
-		}
-		con->in_msg = msg;
-		if (con->in_msg) {
-			con->in_msg->con = con->ops->get(con);
-			BUG_ON(con->in_msg->con == NULL);
-		}
-		if (*skip) {
+		if (con->in_msg)
+			con->in_msg->con = con;
+		if (skip)
 			con->in_msg = NULL;
 			return 0;
 		}
@@ -2731,8 +2717,7 @@ static int ceph_con_in_msg_alloc(struct ceph_connection *con, int *skip)
 			       type, front_len);
 			return -ENOMEM;
 		}
-		con->in_msg->con = con->ops->get(con);
-		BUG_ON(con->in_msg->con == NULL);
+		con->in_msg->con = con;
 		con->in_msg->page_alignment = le16_to_cpu(hdr->data_off);
 	}
 	memcpy(&con->in_msg->hdr, &con->in_hdr, sizeof(con->in_hdr));
