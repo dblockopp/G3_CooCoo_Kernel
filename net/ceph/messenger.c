@@ -519,7 +519,6 @@ void ceph_con_init(struct ceph_connection *con, void *private,
 	memset(con, 0, sizeof(*con));
 	con->private = private;
 	con->ops = ops;
-	atomic_set(&con->nref, 1);
 	con->msgr = msgr;
 
 	con_sock_state_init(con);
