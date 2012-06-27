@@ -495,6 +495,9 @@ void ceph_con_open(struct ceph_connection *con,
 	con->peer_name.type = (__u8) entity_type;
 	con->peer_name.num = cpu_to_le64(entity_num);
 
+	con->peer_name.type = (__u8) entity_type;
+	con->peer_name.num = cpu_to_le64(entity_num);
+
 	memcpy(&con->peer_addr, addr, sizeof(*addr));
 	con->delay = 0;      /* reset backoff memory */
 	mutex_unlock(&con->mutex);
@@ -515,7 +518,7 @@ bool ceph_con_opened(struct ceph_connection *con)
  */
 void ceph_con_init(struct ceph_connection *con, void *private,
 	const struct ceph_connection_operations *ops,
-	struct ceph_messenger *msgr, __u8 entity_type, __u64 entity_num)
+	struct ceph_messenger *msgr)
 {
 	dout("con_init %p\n", con);
 	memset(con, 0, sizeof(*con));
@@ -524,9 +527,6 @@ void ceph_con_init(struct ceph_connection *con, void *private,
 	con->msgr = msgr;
 
 	con_sock_state_init(con);
-
-	con->peer_name.type = (__u8) entity_type;
-	con->peer_name.num = cpu_to_le64(entity_num);
 
 	mutex_init(&con->mutex);
 	INIT_LIST_HEAD(&con->out_queue);
