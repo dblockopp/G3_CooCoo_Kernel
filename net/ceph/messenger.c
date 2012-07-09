@@ -2429,6 +2429,8 @@ void ceph_messenger_init(struct ceph_messenger *msgr,
 	encode_my_addr(msgr);
 	msgr->nocrc = nocrc;
 
+	atomic_set(&msgr->stopping, 0);
+
 	dout("%s %p\n", __func__, msgr);
 }
 EXPORT_SYMBOL(ceph_messenger_init);
