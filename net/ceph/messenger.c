@@ -37,6 +37,17 @@
 #define CON_SOCK_STATE_CONNECTED	3	/* -> CLOSING or -> CLOSED */
 #define CON_SOCK_STATE_CLOSING		4	/* -> CLOSED */
 
+/*
+ * connection states
+ */
+#define CON_STATE_CLOSED        1  /* -> PREOPEN */
+#define CON_STATE_PREOPEN       2  /* -> CONNECTING, CLOSED */
+#define CON_STATE_CONNECTING    3  /* -> NEGOTIATING, CLOSED */
+#define CON_STATE_NEGOTIATING   4  /* -> OPEN, CLOSED */
+#define CON_STATE_OPEN          5  /* -> STANDBY, CLOSED */
+#define CON_STATE_STANDBY       6  /* -> PREOPEN, CLOSED */
+
+
 /* static tag bytes (protocol control messages) */
 static char tag_msg = CEPH_MSGR_TAG_MSG;
 static char tag_ack = CEPH_MSGR_TAG_ACK;
@@ -463,10 +474,8 @@ void ceph_con_close(struct ceph_connection *con)
 	mutex_lock(&con->mutex);
 	dout("con_close %p peer %s\n", con,
 	     ceph_pr_addr(&con->peer_addr.in_addr));
-	clear_bit(NEGOTIATING, &con->state);
-	clear_bit(CONNECTING, &con->state);
-	clear_bit(CONNECTED, &con->state);
-	clear_bit(STANDBY, &con->state);  /* avoid connect_seq bump */
+	con->state = CON_STATE_CLOSED;
+
 	clear_bit(LOSSYTX, &con->flags);  /* so we retry next connect */
 	clear_bit(KEEPALIVE_PENDING, &con->flags);
 	clear_bit(WRITE_PENDING, &con->flags);
@@ -489,11 +498,8 @@ void ceph_con_open(struct ceph_connection *con,
 	mutex_lock(&con->mutex);
 	dout("con_open %p %s\n", con, ceph_pr_addr(&addr->in_addr));
 
-	WARN_ON(con->state != CON_STATE_CLOSED);
+	BUG_ON(con->state != CON_STATE_CLOSED);
 	con->state = CON_STATE_PREOPEN;
-
-	con->peer_name.type = (__u8) entity_type;
-	con->peer_name.num = cpu_to_le64(entity_num);
 
 	con->peer_name.type = (__u8) entity_type;
 	con->peer_name.num = cpu_to_le64(entity_num);
@@ -779,28 +785,16 @@ static struct ceph_auth_handshake *get_connect_authorizer(struct ceph_connection
 
 	/* Can't hold the mutex while getting authorizer */
 	mutex_unlock(&con->mutex);
-
-	auth_protocol = CEPH_AUTH_UNKNOWN;
-	auth = con->ops->get_authorizer(con, &auth_protocol, con->auth_retry);
-
+	auth = con->ops->get_authorizer(con, auth_proto, con->auth_retry);
 	mutex_lock(&con->mutex);
 
 	if (IS_ERR(auth))
 		return auth;
-	if (test_bit(CLOSED, &con->state) || test_bit(OPENING, &con->flags))
+	if (con->state != CON_STATE_NEGOTIATING)
 		return ERR_PTR(-EAGAIN);
 
 	auth_buf = auth->authorizer_buf;
 	auth_len = auth->authorizer_buf_len;
-	con->auth_reply_buf = auth->authorizer_reply_buf;
-	con->auth_reply_buf_len = auth->authorizer_reply_buf_len;
-
-	con->out_connect.authorizer_protocol = cpu_to_le32(auth_protocol);
-	con->out_connect.authorizer_len = cpu_to_le32(auth_len);
-
-	if (auth_len)
-		ceph_con_out_kvec_add(con, auth_len, auth_buf);
-
 	con->auth_reply_buf = auth->authorizer_reply_buf;
 	con->auth_reply_buf_len = auth->authorizer_reply_buf_len;
 	return auth;
@@ -1453,7 +1447,8 @@ static int process_banner(struct ceph_connection *con)
 static void fail_protocol(struct ceph_connection *con)
 {
 	reset_connection(con);
-	set_bit(CLOSED, &con->state);  /* in case there's queued work */
+	BUG_ON(con->state != CON_STATE_NEGOTIATING);
+	con->state = CON_STATE_CLOSED;
 }
 
 static int process_connect(struct ceph_connection *con)
@@ -1576,9 +1571,10 @@ static int process_connect(struct ceph_connection *con)
 			reset_connection(con);
 			return -1;
 		}
-		clear_bit(NEGOTIATING, &con->state);
-		clear_bit(CONNECTING, &con->state);
-		set_bit(CONNECTED, &con->state);
+
+		BUG_ON(con->state != CON_STATE_NEGOTIATING);
+		con->state = CON_STATE_OPEN;
+
 		con->peer_global_seq = le32_to_cpu(con->in_reply.global_seq);
 		con->connect_seq++;
 		con->peer_features = server_feat;
@@ -2074,6 +2070,7 @@ more:
 		if (ret < 0)
 			goto out;
 
+		BUG_ON(con->state != CON_STATE_CONNECTING);
 		con->state = CON_STATE_NEGOTIATING;
 
 		/*
@@ -2101,7 +2098,7 @@ more:
 		goto more;
 	}
 
-	WARN_ON(con->state != CON_STATE_OPEN);
+	BUG_ON(con->state != CON_STATE_OPEN);
 
 	if (con->in_base_pos < 0) {
 		/*
@@ -2136,8 +2133,8 @@ more:
 			prepare_read_ack(con);
 			break;
 		case CEPH_MSGR_TAG_CLOSE:
-			clear_bit(CONNECTED, &con->state);
-			set_bit(CLOSED, &con->state);   /* fixme */
+			con_close_socket(con);
+			con->state = CON_STATE_CLOSED;
 			goto out;
 		default:
 			goto bad_tag;
@@ -2244,13 +2241,20 @@ static void con_work(struct work_struct *work)
 	mutex_lock(&con->mutex);
 restart:
 	if (test_and_clear_bit(SOCK_CLOSED, &con->flags)) {
-		if (test_and_clear_bit(CONNECTED, &con->state))
-			con->error_msg = "socket closed";
-		else if (test_and_clear_bit(CONNECTING, &con->state)) {
-			clear_bit(NEGOTIATING, &con->state);
+		switch (con->state) {
+		case CON_STATE_CONNECTING:
 			con->error_msg = "connection failed";
-		} else {
+			break;
+		case CON_STATE_NEGOTIATING:
+			con->error_msg = "negotiation failed";
+			break;
+		case CON_STATE_OPEN:
+			con->error_msg = "socket closed";
+			break;
+		default:
+			dout("unrecognized con state %d\n", (int)con->state);
 			con->error_msg = "unrecognized con state";
+			BUG();
 		}
 		goto fault;
 	}
@@ -2327,18 +2331,13 @@ static void ceph_fault(struct ceph_connection *con)
 	dout("fault %p state %lu to peer %s\n",
 	     con, con->state, ceph_pr_addr(&con->peer_addr.in_addr));
 
-	if (test_bit(LOSSYTX, &con->flags)) {
-		dout("fault on LOSSYTX channel\n");
-		goto out;
-	}
-
-	mutex_lock(&con->mutex);
-	if (test_bit(CLOSED, &con->state))
-		goto out_unlock;
+	BUG_ON(con->state != CON_STATE_CONNECTING &&
+	       con->state != CON_STATE_NEGOTIATING &&
+	       con->state != CON_STATE_OPEN);
 
 	con_close_socket(con);
 
-	if (test_bit(CON_FLAG_LOSSYTX, &con->flags)) {
+	if (test_bit(LOSSYTX, &con->flags)) {
 		dout("fault on LOSSYTX channel, marking CLOSED\n");
 		con->state = CON_STATE_CLOSED;
 		goto out_unlock;
@@ -2361,7 +2360,7 @@ static void ceph_fault(struct ceph_connection *con)
 	    !test_bit(KEEPALIVE_PENDING, &con->flags)) {
 		dout("fault %p setting STANDBY clearing WRITE_PENDING\n", con);
 		clear_bit(WRITE_PENDING, &con->flags);
-		set_bit(STANDBY, &con->state);
+		con->state = CON_STATE_STANDBY;
 	} else {
 		/* retry after a delay. */
 		con->state = CON_STATE_PREOPEN;
@@ -2459,6 +2458,14 @@ void ceph_con_send(struct ceph_connection *con, struct ceph_msg *msg)
 	msg->needs_out_seq = true;
 
 	mutex_lock(&con->mutex);
+
+	if (con->state == CON_STATE_CLOSED) {
+		dout("con_send %p closed, dropping %p\n", con, msg);
+		ceph_msg_put(msg);
+		mutex_unlock(&con->mutex);
+		return;
+	}
+
 	BUG_ON(msg->con != NULL);
 	msg->con = con;
 	BUG_ON(!list_empty(&msg->list_head));
