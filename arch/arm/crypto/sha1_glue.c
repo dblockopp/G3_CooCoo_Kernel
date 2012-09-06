@@ -27,7 +27,7 @@
 
 
 asmlinkage void sha1_block_data_order(u32 *digest,
-		const unsigned char *data, unsigned int rounds);
+	const unsigned char *data, unsigned int rounds);
 
 
 static int sha1_init(struct shash_desc *desc)
