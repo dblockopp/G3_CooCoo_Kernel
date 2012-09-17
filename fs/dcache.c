@@ -373,7 +373,7 @@ static struct dentry *d_kill(struct dentry *dentry, struct dentry *parent)
 	 * Inform ascending readers that we are no longer attached to the
 	 * dentry tree
 	 */
-	dentry->d_flags |= DCACHE_DISCONNECTED;
+	dentry->d_flags |= DCACHE_DENTRY_KILLED;
 	if (parent)
 		spin_unlock(&parent->d_lock);
 	dentry_iput(dentry);
@@ -1009,6 +1009,34 @@ void shrink_dcache_for_umount(struct super_block *sb)
 		dentry = hlist_bl_entry(hlist_bl_first(&sb->s_anon), struct dentry, d_hash);
 		shrink_dcache_for_umount_subtree(dentry);
 	}
+}
+
+/*
+ * This tries to ascend one level of parenthood, but
+ * we can race with renaming, so we need to re-check
+ * the parenthood after dropping the lock and check
+ * that the sequence number still matches.
+ */
+static struct dentry *try_to_ascend(struct dentry *old, int locked, unsigned seq)
+{
+	struct dentry *new = old->d_parent;
+
+	rcu_read_lock();
+	spin_unlock(&old->d_lock);
+	spin_lock(&new->d_lock);
+
+	/*
+	 * might go back up the wrong parent if we have had a rename
+	 * or deletion
+	 */
+	if (new != old->d_parent ||
+		 (old->d_flags & DCACHE_DENTRY_KILLED) ||
+		 (!locked && read_seqretry(&rename_lock, seq))) {
+		spin_unlock(&new->d_lock);
+		new = NULL;
+	}
+	rcu_read_unlock();
+	return new;
 }
 
 
