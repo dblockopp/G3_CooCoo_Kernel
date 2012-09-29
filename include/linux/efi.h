@@ -504,14 +504,8 @@ extern void efi_gettimeofday (struct timespec *ts);
 extern void efi_enter_virtual_mode (void);	/* switch EFI to virtual mode, if possible */
 #ifdef CONFIG_X86
 extern void efi_free_boot_services(void);
-extern efi_status_t efi_query_variable_store(u32 attributes, unsigned long size);
 #else
 static inline void efi_free_boot_services(void) {}
-
-static inline efi_status_t efi_query_variable_store(u32 attributes, unsigned long size)
-{
-	return EFI_SUCCESS;
-}
 #endif
 extern u64 efi_get_iobase (void);
 extern u32 efi_mem_type (unsigned long phys_addr);

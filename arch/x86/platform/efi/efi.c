@@ -429,9 +429,8 @@ void __init efi_reserve_boot_services(void)
 	}
 }
 
-void __init efi_unmap_memmap(void)
+static void __init efi_unmap_memmap(void)
 {
-	clear_bit(EFI_MEMMAP, &x86_efi_facility);
 	if (memmap.map) {
 		early_iounmap(memmap.map, memmap.nr_map * memmap.desc_size);
 		memmap.map = NULL;
@@ -442,7 +441,7 @@ void __init efi_free_boot_services(void)
 {
 	void *p;
 
-	if (!efi_is_native())
+	if (!efi_native)
 		return;
 
 	for (p = memmap.map; p < memmap.map_end; p += memmap.desc_size) {
@@ -810,7 +809,7 @@ void __init efi_enter_virtual_mode(void)
 	 * non-native EFI
 	 */
 
-	if (!efi_is_native()) {
+	if (!efi_native) {
 		efi_unmap_memmap();
 		return;
 	}
