@@ -759,28 +759,43 @@ int gpio_export(unsigned gpio, bool direction_may_change)
 		return -EPERM;
 	}
 
-	if (desc->chip->direction_input && desc->chip->direction_output &&
-			direction_may_change) {
-		set_bit(FLAG_SYSFS_DIR, &desc->flags);
-	}
-
+	if (!desc->chip->direction_input || !desc->chip->direction_output)
+		direction_may_change = false;
 	spin_unlock_irqrestore(&gpio_lock, flags);
 
 	if (desc->chip->names && desc->chip->names[gpio - desc->chip->base])
 		ioname = desc->chip->names[gpio - desc->chip->base];
 
-	dev = device_create_with_groups(&gpio_class, desc->chip->dev,
-					MKDEV(0, 0), desc, gpio_groups,
-					ioname ? ioname : "gpio%u", gpio);
+	dev = device_create(&gpio_class, desc->chip->dev, MKDEV(0, 0),
+			    desc, ioname ? ioname : "gpio%u", gpio);
 	if (IS_ERR(dev)) {
 		status = PTR_ERR(dev);
 		goto fail_unlock;
+	}
+
+	status = sysfs_create_group(&dev->kobj, &gpio_attr_group);
+	if (status)
+		goto fail_unregister_device;
+
+	if (direction_may_change) {
+		status = device_create_file(dev, &dev_attr_direction);
+		if (status)
+			goto fail_unregister_device;
+	}
+
+	if (gpio_to_irq(gpio) >= 0 && (direction_may_change ||
+				       !test_bit(FLAG_IS_OUT, &desc->flags))) {
+		status = device_create_file(dev, &dev_attr_edge);
+		if (status)
+			goto fail_unregister_device;
 	}
 
 	set_bit(FLAG_EXPORT, &desc->flags);
 	mutex_unlock(&sysfs_lock);
 	return 0;
 
+fail_unregister_device:
+	device_unregister(dev);
 fail_unlock:
 	mutex_unlock(&sysfs_lock);
 	pr_debug("%s: gpio%d status %d\n", __func__, gpio, status);
