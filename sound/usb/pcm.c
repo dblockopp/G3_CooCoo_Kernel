@@ -373,6 +373,12 @@ static int snd_usb_hw_params(struct snd_pcm_substream *substream,
 	changed = subs->cur_audiofmt != fmt ||
 		subs->period_bytes != params_period_bytes(hw_params) ||
 		subs->cur_rate != rate;
+
+	down_read(&subs->stream->chip->shutdown_rwsem);
+	if (subs->stream->chip->shutdown) {
+		ret = -ENODEV;
+		goto unlock;
+	}
 	if ((ret = set_format(subs, fmt)) < 0)
 		return ret;
 
@@ -399,6 +405,8 @@ static int snd_usb_hw_params(struct snd_pcm_substream *substream,
 		mutex_unlock(&subs->stream->chip->shutdown_mutex);
 	}
 
+unlock:
+	up_read(&subs->stream->chip->shutdown_rwsem);
 	return ret;
 }
 
@@ -414,9 +422,9 @@ static int snd_usb_hw_free(struct snd_pcm_substream *substream)
 	subs->cur_audiofmt = NULL;
 	subs->cur_rate = 0;
 	subs->period_bytes = 0;
-	mutex_lock(&subs->stream->chip->shutdown_mutex);
+	down_read(&subs->stream->chip->shutdown_rwsem);
 	snd_usb_release_substream_urbs(subs, 0);
-	mutex_unlock(&subs->stream->chip->shutdown_mutex);
+	up_read(&subs->stream->chip->shutdown_rwsem);
 	return snd_pcm_lib_free_vmalloc_buffer(substream);
 }
 
@@ -435,6 +443,11 @@ static int snd_usb_pcm_prepare(struct snd_pcm_substream *substream)
 		return -ENXIO;
 	}
 
+	down_read(&subs->stream->chip->shutdown_rwsem);
+	if (subs->stream->chip->shutdown) {
+		ret = -ENODEV;
+		goto unlock;
+	}n
 	/* some unit conversions in runtime */
 	subs->maxframesize = bytes_to_frames(runtime, subs->maxpacksize);
 	subs->curframesize = bytes_to_frames(runtime, subs->curpacksize);
@@ -447,7 +460,10 @@ static int snd_usb_pcm_prepare(struct snd_pcm_substream *substream)
 	subs->last_frame_number = 0;
 	runtime->delay = 0;
 
-	return snd_usb_substream_prepare(subs, runtime);
+	ret = snd_usb_substream_prepare(subs, runtime);
+ unlock:
+	up_read(&subs->stream->chip->shutdown_rwsem);
+	return ret;
 }
 
 static struct snd_pcm_hardware snd_usb_hardware =

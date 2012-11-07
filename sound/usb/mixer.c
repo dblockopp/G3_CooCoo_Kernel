@@ -292,6 +292,7 @@ static int get_ctl_value_v1(struct usb_mixer_elem_info *cval, int request, int v
 	err = snd_usb_autoresume(cval->mixer->chip);
 	if (err < 0)
 		return -EIO;
+	down_read(&chip->shutdown_rwsem);
 	while (timeout-- > 0) {
 		if (snd_usb_ctl_msg(chip->dev, usb_rcvctrlpipe(chip->dev, 0), request,
 				    USB_RECIP_INTERFACE | USB_TYPE_CLASS | USB_DIR_IN,
@@ -302,6 +303,12 @@ static int get_ctl_value_v1(struct usb_mixer_elem_info *cval, int request, int v
 			return 0;
 		}
 	}
+	snd_printdd(KERN_ERR "cannot get ctl value: req = %#x, wValue = %#x, wIndex = %#x, type = %d\n",
+		    request, validx, idx, cval->val_type);
+	err = -EINVAL;
+
+ out:
+	up_read(&chip->shutdown_rwsem);
 	snd_usb_autosuspend(cval->mixer->chip);
 	snd_printdd(KERN_ERR "cannot get ctl value: req = %#x, wValue = %#x, wIndex = %#x, type = %d\n",
 		    request, validx, snd_usb_ctrl_intf(chip) | (cval->id << 8), cval->val_type);
@@ -330,10 +337,16 @@ static int get_ctl_value_v2(struct usb_mixer_elem_info *cval, int request, int v
 	if (ret)
 		goto error;
 
-	ret = snd_usb_ctl_msg(chip->dev, usb_rcvctrlpipe(chip->dev, 0), bRequest,
+	down_read(&chip->shutdown_rwsem);
+	if (chip->shutdown)
+		ret = -ENODEV;
+	else {
+		idx = snd_usb_ctrl_intf(chip) | (cval->id << 8);
+		ret = snd_usb_ctl_msg(chip->dev, usb_rcvctrlpipe(chip->dev, 0), bRequest,
 			      USB_RECIP_INTERFACE | USB_TYPE_CLASS | USB_DIR_IN,
-			      validx, snd_usb_ctrl_intf(chip) | (cval->id << 8),
-			      buf, size);
+			      validx, idx, buf, size);
+	}
+	up_read(&chip->shutdown_rwsem);
 	snd_usb_autosuspend(chip);
 
 	if (ret < 0) {
@@ -440,7 +453,11 @@ int snd_usb_mixer_set_ctl_value(struct usb_mixer_elem_info *cval,
 	err = snd_usb_autoresume(chip);
 	if (err < 0)
 		return -EIO;
-	while (timeout-- > 0)
+	down_read(&chip->shutdown_rwsem);
+	while (timeout-- > 0) {
+		if (chip->shutdown)
+			break;
+		idx = snd_usb_ctrl_intf(chip) | (cval->id << 8);
 		if (snd_usb_ctl_msg(chip->dev,
 				    usb_sndctrlpipe(chip->dev, 0), request,
 				    USB_RECIP_INTERFACE | USB_TYPE_CLASS | USB_DIR_OUT,
@@ -449,6 +466,13 @@ int snd_usb_mixer_set_ctl_value(struct usb_mixer_elem_info *cval,
 			snd_usb_autosuspend(chip);
 			return 0;
 		}
+	}
+	snd_printdd(KERN_ERR "cannot set ctl value: req = %#x, wValue = %#x, wIndex = %#x, type = %d, data = %#x/%#x\n",
+		    request, validx, idx, cval->val_type, buf[0], buf[1]);
+	err = -EINVAL;
+
+ out:
+	up_read(&chip->shutdown_rwsem);
 	snd_usb_autosuspend(chip);
 	snd_printdd(KERN_ERR "cannot set ctl value: req = %#x, wValue = %#x, wIndex = %#x, type = %d, data = %#x/%#x\n",
 		    request, validx, snd_usb_ctrl_intf(chip) | (cval->id << 8), cval->val_type, buf[0], buf[1]);
