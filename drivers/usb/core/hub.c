@@ -2299,6 +2299,46 @@ static int hub_port_wait_reset(struct usb_hub *hub, int port1,
 	return -EBUSY;
 }
 
+static void hub_port_finish_reset(struct usb_hub *hub, int port1,
+			struct usb_device *udev, int *status, bool warm)
+{
+	switch (*status) {
+	case 0:
+		if (!warm) {
+			struct usb_hcd *hcd;
+			/* TRSTRCY = 10 ms; plus some extra */
+			msleep(10 + 40);
+			update_devnum(udev, 0);
+			hcd = bus_to_hcd(udev->bus);
+			if (hcd->driver->reset_device) {
+				*status = hcd->driver->reset_device(hcd, udev);
+				if (*status < 0) {
+					dev_err(&udev->dev, "Cannot reset "
+							"HCD device state\n");
+					break;
+				}
+			}
+		}
+		/* FALL THROUGH */
+	case -ENOTCONN:
+	case -ENODEV:
+		clear_port_feature(hub->hdev,
+				port1, USB_PORT_FEAT_C_RESET);
+		/* FIXME need disconnect() for NOTATTACHED device */
+		if (hub_is_superspeed(hub->hdev)) {
+			clear_port_feature(hub->hdev, port1,
+					USB_PORT_FEAT_C_BH_PORT_RESET);
+			clear_port_feature(hub->hdev, port1,
+					USB_PORT_FEAT_C_PORT_LINK_STATE);
+		}
+		if (!warm)
+			usb_set_device_state(udev, *status
+					? USB_STATE_NOTATTACHED
+					: USB_STATE_DEFAULT);
+		break;
+	}
+}
+
 /* Handle port reset and port warm(BH) reset (for USB3 protocol ports) */
 static int hub_port_reset(struct usb_hub *hub, int port1,
 			struct usb_device *udev, unsigned int delay, bool warm)
