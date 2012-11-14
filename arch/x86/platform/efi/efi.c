@@ -431,6 +431,7 @@ void __init efi_reserve_boot_services(void)
 
 static void __init efi_unmap_memmap(void)
 {
+	clear_bit(EFI_MEMMAP, &x86_efi_facility);
 	if (memmap.map) {
 		early_iounmap(memmap.map, memmap.nr_map * memmap.desc_size);
 		memmap.map = NULL;
