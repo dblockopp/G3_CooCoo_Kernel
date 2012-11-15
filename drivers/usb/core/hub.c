@@ -2249,7 +2249,7 @@ static unsigned hub_is_wusb(struct usb_hub *hub)
 #define HUB_SHORT_RESET_TIME	10
 #define HUB_BH_RESET_TIME	50
 #define HUB_LONG_RESET_TIME	200
-#define HUB_RESET_TIMEOUT	500
+#define HUB_RESET_TIMEOUT	800
 
 /* Is a USB 3.0 port in the Inactive or Complinance Mode state?
  * Port worm reset is required to recover
