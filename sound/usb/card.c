@@ -738,6 +738,14 @@ static int __init snd_usb_audio_init(void)
 		return -EINVAL;
 	}
 
+	usbaudiosdev = kzalloc(sizeof(*usbaudiosdev), GFP_KERNEL);
+	usbaudiosdev->name = "usb_audio";
+
+	err = switch_dev_register(usbaudiosdev);
+	if (err)
+		pr_err("Usb-audio switch registration failed\n");
+	else
+		pr_debug("usb hs_detected\n");
 	return usb_register(&usb_audio_driver);
 }
 
