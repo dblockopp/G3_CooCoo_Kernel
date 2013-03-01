@@ -360,6 +360,7 @@ static int pppol2tp_sendmsg(struct kiocb *iocb, struct socket *sock, struct msgh
 	local_bh_enable();
 
 	sock_put(ps->tunnel_sock);
+	sock_put(sk);
 
 	return error;
 
