@@ -2401,19 +2401,16 @@ static int hub_port_reset(struct usb_hub *hub, int port1,
 {
 	int i, status;
 
-	if (!warm) {
+	if (!hub_is_superspeed(hub->hdev)) {
+		if (warm) {
+			dev_err(hub->intfdev, "only USB3 hub support "
+						"warm reset\n");
+			return -EINVAL;
+		}
 		/* Block EHCI CF initialization during the port reset.
 		 * Some companion controllers don't like it when they mix.
 		 */
 		down_read(&ehci_cf_port_reset_rwsem);
-	} else if (!warm) {
-		/*
-		 * If the caller hasn't explicitly requested a warm reset,
-		 * double check and see if one is needed.
-		 */
-		if (hub_port_status(hub, port1, &portstatus, &portchange) == 0)
-			if (hub_port_warm_reset_required(hub, portstatus))
-				warm = true;
 	}
 
 	/* Reset the port */
@@ -2482,26 +2479,6 @@ static int hub_port_reset(struct usb_hub *hub, int port1,
 		port1);
 
 done:
-	if (status == 0) {
-		/* TRSTRCY = 10 ms; plus some extra */
-		msleep(10 + 40);
-		if (udev) {
-			struct usb_hcd *hcd = bus_to_hcd(udev->bus);
-
-			update_devnum(udev, 0);
-			/* The xHC may think the device is already reset,
-			 * so ignore the status.
-			 */
-			if (hcd->driver->reset_device)
-				hcd->driver->reset_device(hcd, udev);
-
-			usb_set_device_state(udev, USB_STATE_DEFAULT);
-		}
-	} else {
-		if (udev)
-			usb_set_device_state(udev, USB_STATE_NOTATTACHED);
-	}
-
 	if (!hub_is_superspeed(hub->hdev))
 		up_read(&ehci_cf_port_reset_rwsem);
 
