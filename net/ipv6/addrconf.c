@@ -2438,26 +2438,11 @@ static void init_loopback(struct net_device *dev)
 			if (sp_ifa->flags & (IFA_F_DADFAILED | IFA_F_TENTATIVE))
 				continue;
 
-			if (sp_ifa->rt) {
-				/* This dst has been added to garbage list when
-				 * lo device down, release this obsolete dst and
-				 * reallocate a new router for ifa.
-				 */
-				if (sp_ifa->rt->dst.obsolete > 0) {
-					dst_release(&sp_ifa->rt->dst);
-					sp_ifa->rt = NULL;
-				} else {
-					continue;
-				}
-			}
-
 			sp_rt = addrconf_dst_alloc(idev, &sp_ifa->addr, 0);
 
 			/* Failure cases are ignored */
-			if (!IS_ERR(sp_rt)) {
-				sp_ifa->rt = sp_rt;
+			if (!IS_ERR(sp_rt))
 				ip6_ins_rt(sp_rt);
-			}
 		}
 		read_unlock_bh(&idev->lock);
 	}
