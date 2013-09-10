@@ -1046,6 +1046,13 @@ static void pch_uart_err_ir(struct eg20t_port *priv, unsigned int lsr)
 
 	if (lsr & UART_LSR_OE)
 		dev_err(&priv->pdev->dev, "Overrun Error\n");
+
+	if (tty == NULL) {
+		for (i = 0; error_msg[i] != NULL; i++)
+			dev_err(&priv->pdev->dev, error_msg[i]);
+	} else {
+		tty_kref_put(tty);
+	}
 }
 
 static irqreturn_t pch_uart_interrupt(int irq, void *dev_id)
