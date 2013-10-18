@@ -759,6 +759,11 @@ static int __init snd_usb_audio_init(void)
 	}
 
 	usbaudiosdev = kzalloc(sizeof(*usbaudiosdev), GFP_KERNEL);
+	if (!usbaudiosdev) {
+		pr_err("Usb audio device memory allocation failed.\n");
+		return -ENOMEM;
+	}
+
 	usbaudiosdev->name = "usb_audio";
 
 	err = switch_dev_register(usbaudiosdev);
