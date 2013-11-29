@@ -145,7 +145,7 @@ static int ip6_finish_output2(struct sk_buff *skb)
 	}
 	rcu_read_unlock();
 	IP6_INC_STATS(dev_net(dst->dev),
-			 ip6_dst_idev(dst), IPSTATS_MIB_OUTNOROUTES);
+		      ip6_dst_idev(dst), IPSTATS_MIB_OUTNOROUTES);
 	kfree_skb(skb);
 	return -EINVAL;
 }
