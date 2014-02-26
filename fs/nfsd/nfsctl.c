@@ -656,7 +656,12 @@ static ssize_t __write_ports_addfd(char *buf)
 	if (err != 0 || fd < 0)
 		return -EINVAL;
 
-	err = nfsd_create_serv();
+	if (svc_alien_sock(net, fd)) {
+		printk(KERN_ERR "%s: socket net is different to NFSd's one\n", __func__);
+		return -EINVAL;
+	}
+
+	err = nfsd_create_serv(net);
 	if (err != 0)
 		return err;
 
