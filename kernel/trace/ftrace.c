@@ -3853,18 +3853,19 @@ static void ftrace_init_module(struct module *mod,
 	ftrace_process_locs(mod, start, end);
 }
 
-static int ftrace_module_notify(struct notifier_block *self,
-				unsigned long val, void *data)
+void ftrace_module_init(struct module *mod)
+{
+	ftrace_init_module(mod, mod->ftrace_callsites,
+			   mod->ftrace_callsites +
+			   mod->num_ftrace_callsites);
+}
+
+static int ftrace_module_notify_exit(struct notifier_block *self,
+				     unsigned long val, void *data)
 {
 	struct module *mod = data;
 
-	switch (val) {
-	case MODULE_STATE_COMING:
-		ftrace_init_module(mod, mod->ftrace_callsites,
-				   mod->ftrace_callsites +
-				   mod->num_ftrace_callsites);
-		break;
-	case MODULE_STATE_GOING:
+	if (val == MODULE_STATE_GOING)
 		ftrace_release_mod(mod);
 		break;
 	}
@@ -3872,16 +3873,16 @@ static int ftrace_module_notify(struct notifier_block *self,
 	return 0;
 }
 #else
-static int ftrace_module_notify(struct notifier_block *self,
-				unsigned long val, void *data)
+static int ftrace_module_notify_exit(struct notifier_block *self,
+				     unsigned long val, void *data)
 {
 	return 0;
 }
 #endif /* CONFIG_MODULES */
 
-struct notifier_block ftrace_module_nb = {
-	.notifier_call = ftrace_module_notify,
-	.priority = 0,
+struct notifier_block ftrace_module_exit_nb = {
+	.notifier_call = ftrace_module_notify_exit,
+	.priority = INT_MIN,	/* Run after anything that can remove kprobes */
 };
 
 extern unsigned long __start_mcount_loc[];
@@ -3915,7 +3916,7 @@ void __init ftrace_init(void)
 				  __start_mcount_loc,
 				  __stop_mcount_loc);
 
-	ret = register_module_notifier(&ftrace_module_nb);
+	ret = register_module_notifier(&ftrace_module_exit_nb);
 	if (ret)
 		pr_warning("Failed to register trace ftrace module notifier\n");
 
