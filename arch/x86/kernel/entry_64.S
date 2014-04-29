@@ -902,7 +902,7 @@ retint_restore_args:	/* return to kernel space */
 restore_args:
 	RESTORE_ARGS 1,8,1
 
-irq_return:
+irq_return_iret:
 	INTERRUPT_RETURN
 
 ENTRY(native_iret)
@@ -1173,7 +1173,7 @@ zeroentry overflow do_overflow
 zeroentry bounds do_bounds
 zeroentry invalid_op do_invalid_op
 zeroentry device_not_available do_device_not_available
-paranoiderrorentry double_fault do_double_fault
+paranoiderrorentry double_fault __do_double_fault
 zeroentry coprocessor_segment_overrun do_coprocessor_segment_overrun
 errorentry invalid_TSS do_invalid_TSS
 errorentry segment_not_present do_segment_not_present
