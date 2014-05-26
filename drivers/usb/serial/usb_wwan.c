@@ -559,7 +559,7 @@ int usb_wwan_open(struct tty_struct *tty, struct usb_serial_port *port)
 EXPORT_SYMBOL(usb_wwan_open);
 
 static void unbusy_queued_urb(struct urb *urb,
-			struct usb_wwan_port_private *portdata)
+					struct usb_wwan_port_private *portdata)
 {
 	int i;
 
@@ -819,18 +819,6 @@ int usb_wwan_suspend(struct usb_serial *serial, pm_message_t message)
 	return 0;
 }
 EXPORT_SYMBOL(usb_wwan_suspend);
-
-static void unbusy_queued_urb(struct urb *urb, struct usb_wwan_port_private *portdata)
-{
-	int i;
-
-	for (i = 0; i < N_OUT_URB; i++) {
-		if (urb == portdata->out_urbs[i]) {
-			clear_bit(i, &portdata->out_busy);
-			break;
-		}
-	}
-}
 
 static void play_delayed(struct usb_serial_port *port)
 {
