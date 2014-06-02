@@ -109,13 +109,4 @@ static inline void inet_peer_refcheck(const struct inet_peer *p)
 	WARN_ON_ONCE(atomic_read(&p->refcnt) <= 0);
 }
 
-
-/* can be called with or without local BH being disabled */
-static inline int inet_getid(struct inet_peer *p, int more)
-{
-	more++;
-	inet_peer_refcheck(p);
-	return atomic_add_return(more, &p->ip_id_count) - more;
-}
-
 #endif /* _NET_INETPEER_H */
