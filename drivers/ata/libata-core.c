@@ -4706,6 +4706,7 @@ void swap_buf_le16(u16 *buf, unsigned int buf_words)
 static struct ata_queued_cmd *ata_qc_new(struct ata_port *ap)
 {
 	struct ata_queued_cmd *qc = NULL;
+	unsigned int max_queue = ap->host->n_tags;
 	unsigned int i, tag;
 
 	/* no command while frozen */
