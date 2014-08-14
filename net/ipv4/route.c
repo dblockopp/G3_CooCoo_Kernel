@@ -1092,7 +1092,7 @@ static void __do_rt_garbage_collect(int elasticity, int min_interval)
 	if (net_ratelimit())
 		pr_warn("dst cache overflow\n");
 	RT_CACHE_STAT_INC(gc_dst_overflow);
-	goto out;
+	return;
 
 work_done:
 	expire += min_interval;
@@ -1100,8 +1100,7 @@ work_done:
 	    dst_entries_get_fast(&ipv4_dst_ops) < ipv4_dst_ops.gc_thresh ||
 	    dst_entries_get_slow(&ipv4_dst_ops) < ipv4_dst_ops.gc_thresh)
 		expire = ip_rt_gc_timeout;
-out:
-	spin_unlock_bh(&rt_gc_lock);
+out:	return;
 }
 
 static void __rt_garbage_collect(struct work_struct *w)
@@ -1312,15 +1311,8 @@ restart:
 			   can be released. Try to shrink route cache,
 			   it is most likely it holds some neighbour records.
 			 */
-			if (!in_softirq() && attempts-- > 0) {
-				static DEFINE_SPINLOCK(lock);
-
-				if (spin_trylock(&lock)) {
-					__do_rt_garbage_collect(1, 0);
-					spin_unlock(&lock);
-				} else {
-					spin_unlock_wait(&lock);
-				}
+			if (attempts-- > 0) {
+				__do_rt_garbage_collect(1, 0);
 				goto restart;
 			}
 
