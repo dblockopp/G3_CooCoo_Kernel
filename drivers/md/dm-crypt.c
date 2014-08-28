@@ -1367,33 +1367,41 @@ static int crypt_ctr(struct dm_target *ti, unsigned int argc, char **argv)
 	struct dm_arg_set as;
 	const char *opt_string;
 	char dummy;
+
 	static struct dm_arg _args[] = {
 		{0, 1, "Invalid number of feature args"},
 	};
+
 	if (argc < 5) {
 		ti->error = "Not enough arguments";
 		return -EINVAL;
 	}
+
 	key_size = strlen(argv[1]) >> 1;
+
 	cc = kzalloc(sizeof(*cc) + key_size * sizeof(u8), GFP_KERNEL);
 	if (!cc) {
 		ti->error = "Cannot allocate encryption context";
 		return -ENOMEM;
 	}
 	cc->key_size = key_size;
+
 	ti->private = cc;
 	ret = crypt_ctr_cipher(ti, argv[0], argv[1]);
 	if (ret < 0)
 		goto bad;
+
 	ret = -ENOMEM;
 	cc->io_pool = mempool_create_slab_pool(MIN_IOS, _crypt_io_pool);
 	if (!cc->io_pool) {
 		ti->error = "Cannot allocate crypt io mempool";
 		goto bad;
 	}
+
 	cc->dmreq_start = sizeof(struct ablkcipher_request);
 	cc->dmreq_start += crypto_ablkcipher_reqsize(any_tfm(cc));
 	cc->dmreq_start = ALIGN(cc->dmreq_start, __alignof__(struct dm_crypt_request));
+
 	if (crypto_ablkcipher_alignmask(any_tfm(cc)) < CRYPTO_MINALIGN) {
 		/* Allocate the padding exactly */
 		iv_size_padding = -(cc->dmreq_start + sizeof(struct dm_crypt_request))
@@ -1406,12 +1414,14 @@ static int crypt_ctr(struct dm_target *ti, unsigned int argc, char **argv)
 		 */
 		iv_size_padding = crypto_ablkcipher_alignmask(any_tfm(cc));
 	}
+
 	cc->req_pool = mempool_create_kmalloc_pool(MIN_IOS, cc->dmreq_start +
 			sizeof(struct dm_crypt_request) + iv_size_padding + cc->iv_size);
 	if (!cc->req_pool) {
 		ti->error = "Cannot allocate crypt request mempool";
 		goto bad;
 	}
+
 	cc->page_pool = mempool_create_page_pool(MIN_POOL_PAGES, 0);
 	if (!cc->page_pool) {
 		ti->error = "Cannot allocate page mempool";
@@ -1422,31 +1432,39 @@ static int crypt_ctr(struct dm_target *ti, unsigned int argc, char **argv)
 		ti->error = "Cannot allocate crypt bioset";
 		goto bad;
 	}
+
 	ret = -EINVAL;
 	if (sscanf(argv[2], "%llu%c", &tmpll, &dummy) != 1) {
 		ti->error = "Invalid iv_offset sector";
 		goto bad;
 	}
 	cc->iv_offset = tmpll;
+
 	if (dm_get_device(ti, argv[3], dm_table_get_mode(ti->table), &cc->dev)) {
 		ti->error = "Device lookup failed";
 		goto bad;
 	}
+
 	if (sscanf(argv[4], "%llu%c", &tmpll, &dummy) != 1) {
 		ti->error = "Invalid device sector";
 		goto bad;
 	}
 	cc->start = tmpll;
+
 	argv += 5;
 	argc -= 5;
+
 	/* Optional parameters */
 	if (argc) {
 		as.argc = argc;
 		as.argv = argv;
+
 		ret = dm_read_arg_group(_args, &as, &opt_params, &ti->error);
 		if (ret)
 			goto bad;
+
 		opt_string = dm_shift_arg(&as);
+
 		if (opt_params == 1 && opt_string &&
 		    !strcasecmp(opt_string, "allow_discards"))
 			ti->num_discard_requests = 1;
@@ -1456,6 +1474,7 @@ static int crypt_ctr(struct dm_target *ti, unsigned int argc, char **argv)
 			goto bad;
 		}
 	}
+
 	ret = -ENOMEM;
 	cc->io_queue = alloc_workqueue("kcryptd_io",
 				       WQ_NON_REENTRANT|
@@ -1465,6 +1484,7 @@ static int crypt_ctr(struct dm_target *ti, unsigned int argc, char **argv)
 		ti->error = "Couldn't create kcryptd io queue";
 		goto bad;
 	}
+
 	cc->crypt_queue = alloc_workqueue("kcryptd",
 					  WQ_NON_REENTRANT|
 					  WQ_CPU_INTENSIVE|
@@ -1474,9 +1494,12 @@ static int crypt_ctr(struct dm_target *ti, unsigned int argc, char **argv)
 		ti->error = "Couldn't create kcryptd queue";
 		goto bad;
 	}
+
 	ti->num_flush_requests = 1;
 	ti->discard_zeroes_data_unsupported = 1;
+
 	return 0;
+
 bad:
 	crypt_dtr(ti);
 	return ret;
@@ -1487,6 +1510,7 @@ static int crypt_map(struct dm_target *ti, struct bio *bio,
 {
 	struct dm_crypt_io *io;
 	struct crypt_config *cc;
+
 	/*
 	 * If bio is REQ_FLUSH or REQ_DISCARD, just bypass crypt queues.
 	 * - for REQ_FLUSH device-mapper core ensures that no IO is in-flight
@@ -1499,12 +1523,15 @@ static int crypt_map(struct dm_target *ti, struct bio *bio,
 			bio->bi_sector = cc->start + dm_target_offset(ti, bio->bi_sector);
 		return DM_MAPIO_REMAPPED;
 	}
+
 	io = crypt_io_alloc(ti, bio, dm_target_offset(ti, bio->bi_sector));
+
 	if (bio_data_dir(io->base_bio) == READ) {
 		if (kcryptd_io_read(io, GFP_NOWAIT))
 			kcryptd_queue_io(io);
 	} else
 		kcryptd_queue_crypt(io);
+
 	return DM_MAPIO_SUBMITTED;
 }
 
@@ -1513,10 +1540,12 @@ static void crypt_status(struct dm_target *ti, status_type_t type,
 {
 	struct crypt_config *cc = ti->private;
 	unsigned i, sz = 0;
+
 	switch (type) {
 	case STATUSTYPE_INFO:
 		result[0] = '\0';
 		break;
+
 	case STATUSTYPE_TABLE:
 		DMEMIT("%s ", cc->cipher_string);
 		if (cc->key_size > 0)
