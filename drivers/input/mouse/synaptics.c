@@ -497,18 +497,6 @@ static void synaptics_parse_agm(const unsigned char buf[],
 	priv->agm_pending = true;
 }
 
-static void synaptics_parse_ext_buttons(const unsigned char buf[],
-					struct synaptics_data *priv,
-					struct synaptics_hw_state *hw)
-{
-	unsigned int ext_bits =
-		(SYN_CAP_MULTI_BUTTON_NO(priv->ext_cap) + 1) >> 1;
-	unsigned int ext_mask = (1U << ext_bits) - 1;
-
-	hw->ext_buttons = buf[4] & ext_mask;
-	hw->ext_buttons |= (buf[5] & ext_mask) << ext_bits;
-}
-
 static bool is_forcepad;
 
 static int synaptics_parse_hw_state(const unsigned char buf[],
@@ -540,7 +528,7 @@ static int synaptics_parse_hw_state(const unsigned char buf[],
 		hw->left  = (buf[0] & 0x01) ? 1 : 0;
 		hw->right = (buf[0] & 0x02) ? 1 : 0;
 
-		if (SYN_CAP_FORCEPAD(priv->ext_cap_0c)) {
+		if (is_forcepad) {
 			/*
 			 * ForcePads, like Clickpads, use middle button
 			 * bits to report primary button clicks.
