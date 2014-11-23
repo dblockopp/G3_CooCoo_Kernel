@@ -916,11 +916,13 @@ ENTRY(native_iret)
 
 .global native_irq_return_iret
 native_irq_return_iret:
+	/*
+	 * This may fault.  Non-paranoid faults on return to userspace are
+	 * handled by fixup_bad_iret.  These include #SS, #GP, and #NP.
+	 * Double-faults due to espfix64 are handled in do_double_fault.
+	 * Other faults here are fatal.
+	 */
 	iretq
-
-	.section __ex_table,"a"
-	.quad native_irq_return_iret, bad_iret
-	.previous
 
 #ifdef CONFIG_X86_ESPFIX64
 native_irq_return_ldt:
