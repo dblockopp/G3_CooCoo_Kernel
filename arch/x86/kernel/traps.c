@@ -369,7 +369,7 @@ struct bad_iret_stack {
 	struct pt_regs regs;
 };
 
-asmlinkage
+asmlinkage notrace __kprobes
 struct bad_iret_stack *fixup_bad_iret(struct bad_iret_stack *s)
 {
 	/*
