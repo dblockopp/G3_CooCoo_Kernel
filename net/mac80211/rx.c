@@ -1489,7 +1489,7 @@ ieee80211_rx_h_defragment(struct ieee80211_rx_data *rx)
 
 	if (is_multicast_ether_addr(hdr->addr1)) {
 		rx->local->dot11MulticastReceivedFrameCount++;
-		goto out;
+		goto out_no_led;
 	}
 
 	if (likely(!ieee80211_has_morefrags(fc) && frag == 0))
