@@ -546,45 +546,12 @@ static ssize_t gpio_active_low_store(struct device *dev,
 static DEVICE_ATTR(active_low, 0644,
 		gpio_active_low_show, gpio_active_low_store);
 
-static umode_t gpio_is_visible(struct kobject *kobj, struct attribute *attr,
-			       int n)
-{
-	struct device *dev = container_of(kobj, struct device, kobj);
-	struct gpio_desc *desc = dev_get_drvdata(dev);
-	unsigned gpio = desc - gpio_desc;
-	umode_t mode = attr->mode;
-	bool show_direction = test_bit(FLAG_SYSFS_DIR, &desc->flags);
-
-	if (attr == &dev_attr_direction.attr) {
-		if (!show_direction)
-			mode = 0;
-	} else if (attr == &dev_attr_edge.attr) {
-		if (gpio_to_irq(gpio) < 0)
-			mode = 0;
-		if (!show_direction && test_bit(FLAG_IS_OUT, &desc->flags))
-			mode = 0;
-	}
-
-	return mode;
-}
-
 static struct attribute *gpio_attrs[] = {
-	&dev_attr_direction.attr,
-	&dev_attr_edge.attr,
 	&dev_attr_value.attr,
 	&dev_attr_active_low.attr,
 	NULL,
 };
-
-static const struct attribute_group gpio_group = {
-	.attrs = gpio_attrs,
-	.is_visible = gpio_is_visible,
-};
-
-static const struct attribute_group *gpio_groups[] = {
-	&gpio_group,
-	NULL
-};
+ATTRIBUTE_GROUPS(gpio);
 
 /*
  * /sys/class/gpio/gpiochipN/
@@ -766,16 +733,13 @@ int gpio_export(unsigned gpio, bool direction_may_change)
 	if (desc->chip->names && desc->chip->names[gpio - desc->chip->base])
 		ioname = desc->chip->names[gpio - desc->chip->base];
 
-	dev = device_create(&gpio_class, desc->chip->dev, MKDEV(0, 0),
-			    desc, ioname ? ioname : "gpio%u", gpio);
+	dev = device_create_with_groups(&gpio_class, desc->chip->dev,
+					MKDEV(0, 0), desc, gpio_groups,
+					ioname ? ioname : "gpio%u", gpio);
 	if (IS_ERR(dev)) {
 		status = PTR_ERR(dev);
 		goto fail_unlock;
 	}
-
-	status = sysfs_create_group(&dev->kobj, &gpio_attr_group);
-	if (status)
-		goto fail_unregister_device;
 
 	if (direction_may_change) {
 		status = device_create_file(dev, &dev_attr_direction);
@@ -787,13 +751,15 @@ int gpio_export(unsigned gpio, bool direction_may_change)
 				       !test_bit(FLAG_IS_OUT, &desc->flags))) {
 		status = device_create_file(dev, &dev_attr_edge);
 		if (status)
-			goto fail_unregister_device;
+			goto fail_remove_attr_direction;
 	}
 
 	set_bit(FLAG_EXPORT, &desc->flags);
 	mutex_unlock(&sysfs_lock);
 	return 0;
 
+fail_remove_attr_direction:
+	device_remove_file(dev, &dev_attr_direction);
 fail_unregister_device:
 	device_unregister(dev);
 fail_unlock:
@@ -935,6 +901,8 @@ void gpio_unexport(unsigned gpio)
 
 	mutex_unlock(&sysfs_lock);
 	if (dev) {
+		device_remove_file(dev, &dev_attr_edge);
+		device_remove_file(dev, &dev_attr_direction);
 		device_unregister(dev);
 		put_device(dev);
 	}
