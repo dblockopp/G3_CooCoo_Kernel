@@ -497,6 +497,18 @@ static void synaptics_parse_agm(const unsigned char buf[],
 	priv->agm_pending = true;
 }
 
+static void synaptics_parse_ext_buttons(const unsigned char buf[],
+					struct synaptics_data *priv,
+					struct synaptics_hw_state *hw)
+{
+	unsigned int ext_bits =
+		(SYN_CAP_MULTI_BUTTON_NO(priv->ext_cap) + 1) >> 1;
+	unsigned int ext_mask = (1U << ext_bits) - 1;
+
+	hw->ext_buttons = buf[4] & ext_mask;
+	hw->ext_buttons |= (buf[5] & ext_mask) << ext_bits;
+}
+
 static bool is_forcepad;
 
 static int synaptics_parse_hw_state(const unsigned char buf[],
@@ -583,7 +595,7 @@ static int synaptics_parse_hw_state(const unsigned char buf[],
 			hw->down = ((buf[0] ^ buf[3]) & 0x02) ? 1 : 0;
 		}
 
-		if (SYN_CAP_MULTI_BUTTON_NO(priv->ext_cap) &&
+		if (SYN_CAP_MULTI_BUTTON_NO(priv->ext_cap) > 0 &&
 		    ((buf[0] ^ buf[3]) & 0x02)) {
 			synaptics_parse_ext_buttons(buf, priv, hw);
 		}
@@ -676,6 +688,8 @@ static void synaptics_report_buttons(struct psmouse *psmouse,
 {
 	struct input_dev *dev = psmouse->dev;
 	struct synaptics_data *priv = psmouse->private;
+	int ext_bits = (SYN_CAP_MULTI_BUTTON_NO(priv->ext_cap) + 1) >> 1;
+	int i;
 
 	input_report_key(dev, BTN_LEFT, hw->left);
 	input_report_key(dev, BTN_RIGHT, hw->right);
@@ -688,7 +702,12 @@ static void synaptics_report_buttons(struct psmouse *psmouse,
 		input_report_key(dev, BTN_BACK, hw->down);
 	}
 
-	synaptics_report_ext_buttons(psmouse, hw);
+	for (i = 0; i < ext_bits; i++) {
+		input_report_key(dev, BTN_0 + 2 * i,
+				 hw->ext_buttons & (1 << i));
+		input_report_key(dev, BTN_1 + 2 * i,
+				 hw->ext_buttons & (1 << (i + ext_bits)));
+	}
 }
 
 static void synaptics_report_slot(struct input_dev *dev, int slot,
