@@ -1,5 +1,5 @@
 /*
- * BFQ-v7r7 for 3.4.0: data structures and common functions prototypes.
+ * BFQ-v7r8 for 3.4.0: data structures and common functions prototypes.
  *
  * Based on ideas and code from CFQ:
  * Copyright (C) 2003 Jens Axboe <axboe@kernel.dk>
@@ -327,6 +327,7 @@ struct bfq_io_cq {
 	struct io_cq icq; /* must be the first member */
 	struct bfq_queue *bfqq[2];
 	struct bfq_ttime ttime;
+	int ioprio;
 
 	unsigned int wr_time_left;
 	bool saved_idle_window;
@@ -525,7 +526,6 @@ struct bfq_data {
 	struct list_head active_list;
 	struct list_head idle_list;
 
-	unsigned int bfq_quantum;
 	unsigned int bfq_fifo_expire[2];
 	unsigned int bfq_back_penalty;
 	unsigned int bfq_back_max;
@@ -568,7 +568,6 @@ enum bfqq_state_flags {
 	BFQ_BFQQ_FLAG_must_alloc,	/* must be allowed rq alloc */
 	BFQ_BFQQ_FLAG_fifo_expire,	/* FIFO checked in this slice */
 	BFQ_BFQQ_FLAG_idle_window,	/* slice idling enabled */
-	BFQ_BFQQ_FLAG_prio_changed,	/* task priority has changed */
 	BFQ_BFQQ_FLAG_sync,		/* synchronous queue */
 	BFQ_BFQQ_FLAG_budget_new,	/* no completion with this budget */
 	BFQ_BFQQ_FLAG_IO_bound,		/*
@@ -792,8 +791,8 @@ static inline void bfq_put_bfqd_unlock(struct bfq_data *bfqd,
 	spin_unlock_irqrestore(bfqd->queue->queue_lock, *flags);
 }
 
-static void bfq_changed_ioprio(struct io_context *ioc,
-			       struct bfq_io_cq *bic);
+static void bfq_check_ioprio_change(struct io_context *ioc,
+				    struct bfq_io_cq *bic);
 static void bfq_put_queue(struct bfq_queue *bfqq);
 static void bfq_dispatch_insert(struct request_queue *q, struct request *rq);
 static struct bfq_queue *bfq_get_queue(struct bfq_data *bfqd,
