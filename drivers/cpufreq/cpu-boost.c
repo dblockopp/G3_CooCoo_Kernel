@@ -183,12 +183,32 @@ static void run_boost_migration(unsigned int cpu)
 	put_online_cpus();
 }
 
+static void cpuboost_set_prio(unsigned int policy, unsigned int prio)
+{
+	struct sched_param param = { .sched_priority = prio };
+
+	sched_setscheduler(current, policy, &param);
+}
+
+static void cpuboost_park(unsigned int cpu)
+{
+	cpuboost_set_prio(SCHED_NORMAL, 0);
+}
+
+static void cpuboost_unpark(unsigned int cpu)
+{
+	cpuboost_set_prio(SCHED_FIFO, MAX_RT_PRIO - 1);
+}
+
 static struct smp_hotplug_thread cpuboost_threads = {
 	.store		= &thread,
 	.thread_should_run = boost_migration_should_run,
 	.thread_fn	= run_boost_migration,
 	.thread_comm	= "boost_sync/%u",
+	.park		= cpuboost_park,
+	.unpark		= cpuboost_unpark,
 };
+
 
 static int boost_migration_notify(struct notifier_block *nb,
 				unsigned long dest_cpu, void *arg)
@@ -332,6 +352,62 @@ static struct input_handler cpuboost_input_handler = {
 	.id_table       = cpuboost_ids,
 };
 
+static int cpuboost_cpu_callback(struct notifier_block *cpu_nb,
+				 unsigned long action, void *hcpu)
+{
+	switch (action & ~CPU_TASKS_FROZEN) {
+	case CPU_UP_PREPARE:
+	case CPU_DEAD:
+	case CPU_UP_CANCELED:
+		break;
+	case CPU_ONLINE:
+		if (!hotplug_boost || !input_boost_enabled ||
+		     work_pending(&input_boost_work))
+			break;
+		pr_debug("Hotplug boost for CPU%d\n", (int)hcpu);
+		queue_work(cpu_boost_wq, &input_boost_work);
+		last_input_time = ktime_to_us(ktime_get());
+		break;
+	default:
+		break;
+	}
+	return NOTIFY_OK;
+}
+
+static struct notifier_block __refdata cpu_nblk = {
+        .notifier_call = cpuboost_cpu_callback,
+};
+
+static void __wakeup_boost(void)
+{
+	if (!wakeup_boost || !input_boost_enabled ||
+	     work_pending(&input_boost_work))
+		return;
+	pr_debug("Wakeup boost for display on event.\n");
+	queue_work(cpu_boost_wq, &input_boost_work);
+	last_input_time = ktime_to_us(ktime_get());
+}
+
+#ifdef CONFIG_LCD_NOTIFY
+static int lcd_notifier_callback(struct notifier_block *this,
+				unsigned long event, void *data)
+{
+	switch (event) {
+	case LCD_EVENT_ON_START:
+	case LCD_EVENT_OFF_END:
+	case LCD_EVENT_OFF_START:
+		break;
+	case LCD_EVENT_ON_END:
+		__wakeup_boost();
+		break;
+	default:
+		break;
+	}
+
+	return NOTIFY_OK;
+}
+#endif
+
 static int cpu_boost_init(void)
 {
 	int cpu, ret;
@@ -361,6 +437,16 @@ static int cpu_boost_init(void)
 	ret = input_register_handler(&cpuboost_input_handler);
 	if (ret)
 		pr_err("Cannot register cpuboost input handler.\n");
+
+	ret = register_hotcpu_notifier(&cpu_nblk);
+	if (ret)
+		pr_err("Cannot register cpuboost hotplug handler.\n");
+
+#ifdef CONFIG_LCD_NOTIFY
+	notif.notifier_call = lcd_notifier_callback;
+	if (lcd_register_client(&notif))
+		pr_err("Failed to register hotplug LCD notifier callback.\n");
+#endif
 
 	return ret;
 }
