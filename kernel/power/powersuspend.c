@@ -16,12 +16,6 @@
  *
  *  v1.5 - fix hybrid-kernel mode cannot be set through sysfs
  *
- *  v1.6 - remove autosleep and hybrid modes (autosleep not working on shamu)
- *
- *  v1.7 - do only run state change if change actually requests a new state
- *
- * v1.7.1 - Add autosleep and hybrid modes back
- *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
  * may be copied, distributed, and modified under those terms.
@@ -332,4 +326,3 @@ MODULE_AUTHOR("Paul Reioux <reioux@gmail.com> / Jean-Pierre Rasquin <yank555.lu@
 MODULE_DESCRIPTION("power_suspend - A replacement kernel PM driver for"
         "Android's deprecated early_suspend/late_resume PM driver!");
 MODULE_LICENSE("GPL v2");
-
