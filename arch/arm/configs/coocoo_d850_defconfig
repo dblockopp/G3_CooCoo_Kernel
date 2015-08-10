@@ -2,6 +2,7 @@
 # Automatically generated file; DO NOT EDIT.
 # Linux/arm 3.4.110 Kernel Configuration
 #
+
 CONFIG_ARM=y
 CONFIG_ARM_HAS_SG_CHAIN=y
 CONFIG_SYS_SUPPORTS_APM_EMULATION=y
@@ -750,6 +751,7 @@ CONFIG_CPU_FREQ_GOV_DARKNESS=y
 
 # Hotplugs 
 CONFIG_BRICKED_HOTPLUG=y
+CONFIG_ALUCARD_HOTPLUG=y
 
 #
 # ARM CPU frequency scaling drivers
