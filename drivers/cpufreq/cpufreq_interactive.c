@@ -125,32 +125,25 @@ static int timer_slack_val = DEFAULT_TIMER_SLACK;
  * use_sched_load is true, this flag is ignored and windows
  * will always be aligned.
  */
-static bool align_windows = true;
+static unsigned int up_threshold_any_cpu_load;
+static unsigned int sync_freq;
+static unsigned int up_threshold_any_cpu_freq;
 
-/*
- * Stay at max freq for at least max_freq_hysteresis before dropping
- * frequency.
- */
-static unsigned int max_freq_hysteresis;
+static int cpufreq_governor_interactive(struct cpufreq_policy *policy,
+		unsigned int event);
 
-/* Round to starting jiffy of next evaluation window */
-static u64 round_to_nw_start(u64 jif)
-{
-	unsigned long step = usecs_to_jiffies(timer_rate);
-	u64 ret;
+#ifndef CONFIG_CPU_FREQ_DEFAULT_GOV_INTERACTIVE
+static
+#endif
+struct cpufreq_governor cpufreq_gov_interactive = {
+	.name = "interactive",
+	.governor = cpufreq_governor_interactive,
+	.max_transition_latency = 10000000,
+	.owner = THIS_MODULE,
+};
 
-	if (align_windows) {
-		do_div(jif, step);
-		ret = (jif + 1) * step;
-	} else {
-		ret = jiffies + usecs_to_jiffies(timer_rate);
-	}
-
-	return ret;
-}
-
-static void cpufreq_interactive_timer_resched(unsigned long cpu,
-					      bool slack_only)
+static void cpufreq_interactive_timer_resched(
+	struct cpufreq_interactive_cpuinfo *pcpu)
 {
 	struct cpufreq_interactive_cpuinfo *pcpu = &per_cpu(cpuinfo, cpu);
 	u64 expires;
