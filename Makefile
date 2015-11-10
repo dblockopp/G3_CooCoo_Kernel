@@ -609,6 +609,7 @@ KBUILD_CFLAGS	+= -fomit-frame-pointer
 endif
 endif
 
+
 ifdef CONFIG_DEBUG_INFO
 KBUILD_CFLAGS	+= -g
 KBUILD_AFLAGS	+= -gdwarf-2
