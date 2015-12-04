@@ -41,6 +41,8 @@ CONFIG_IRQ_WORK=y
 #
 # CPU Voltage Control
 CONFIG_CPU_VOLTAGE_TABLE=y
+# Faux Sound Support
+CONFIG_SOUND_CONTROL_HAX_3_GPL=y
 
 #
 # General setup
