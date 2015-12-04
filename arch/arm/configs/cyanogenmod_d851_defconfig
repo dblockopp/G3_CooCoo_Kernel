@@ -39,6 +39,8 @@ CONFIG_IRQ_WORK=y
 #
 # CooCoo Setup
 #
+# CPU Voltage Control
+CONFIG_CPU_VOLTAGE_TABLE=y
 
 #
 # General setup
