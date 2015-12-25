@@ -633,4 +633,8 @@ config FORCE_FAST_CHARGE
  	  are detected as USB to charge as AC (1A/h) or to set
  	  custom charging currents for AC and USB.		
 
+config LGE_THERMALE_CHG_CONTROL
+	bool "LG charger thermal control"
+	default n
+
 endif # POWER_SUPPLY
