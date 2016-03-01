@@ -257,7 +257,15 @@ struct cpufreq_driver {
 					 * frequency transitions */
 #define CPUFREQ_PM_NO_WARN	0x04	/* don't warn on suspend/resume speed
 					 * mismatches */
-
+					 
+/*
+ * This should be set by platforms having multiple clock-domains, i.e.
+ * supporting multiple policies. With this sysfs directories of governor would
+ * be created in cpu/cpu<num>/cpufreq/ directory and so they can use the same
+ * governor with different tunables for different clusters.
+ */
+#define CPUFREQ_HAVE_GOVERNOR_PER_POLICY (1 << 3)
+				 
 int cpufreq_register_driver(struct cpufreq_driver *driver_data);
 int cpufreq_unregister_driver(struct cpufreq_driver *driver_data);
 
@@ -322,6 +330,8 @@ __ATTR(_name, 0644, show_##_name, store_##_name)
 u64 get_cpu_idle_time(unsigned int cpu, u64 *wall, int io_busy);
 int cpufreq_get_policy(struct cpufreq_policy *policy, unsigned int cpu);
 int cpufreq_update_policy(unsigned int cpu);
+bool have_governor_per_policy(void);
+struct kobject *get_governor_parent_kobj(struct cpufreq_policy *policy);
 
 #ifdef CONFIG_MSM_LIMITER
 int cpufreq_set_gov(char *target_gov, unsigned int cpu);
@@ -409,6 +419,12 @@ extern struct cpufreq_governor cpufreq_gov_slim;
 #elif defined(CONFIG_CPU_FREQ_DEFAULT_GOV_LIONHEART)
 extern struct cpufreq_governor cpufreq_gov_lionheart;
 #define CPUFREQ_DEFAULT_GOVERNOR	(&cpufreq_gov_lionheart)
+#elif defined(CONFIG_CPU_FREQ_DEFAULT_GOV_DYNAMIC_INTERACTIVE)
+extern struct cpufreq_governor cpufreq_gov_dynamic_interactive;
+#define CPUFREQ_DEFAULT_GOVERNOR (&cpufreq_gov_dynamic_interactive)
+#elif defined(CONFIG_CPU_FREQ_DEFAULT_GOV_TRIPNDROID)
+extern struct cpufreq_governor cpufreq_gov_tripndroid;
+#define CPUFREQ_DEFAULT_GOVERNOR (&cpufreq_gov_tripndroid)
 #endif
 
 
