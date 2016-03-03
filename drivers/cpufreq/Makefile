@@ -22,7 +22,8 @@ obj-$(CONFIG_CPU_FREQ_GOV_SLIM)		    += cpufreq_slim.o
 obj-$(CONFIG_CPU_FREQ_GOV_LIONHEART)	+= cpufreq_lionheart.o
 obj-$(CONFIG_CPU_FREQ_GOV_DYNAMIC_INTERACTIVE) 	+= cpufreq_dynamic_interactive.o
 obj-$(CONFIG_CPU_FREQ_GOV_TRIPNDROID)	        += cpufreq_tripndroid.o
-obj-$(CONFIG_CPU_FREQ_GOV_RAGINGMOLASSES)  	+= cpufreq_ragingmolasses.o
+obj-$(CONFIG_CPU_FREQ_GOV_RAGINGMOLASSES)  	    += cpufreq_ragingmolasses.o
+obj-$(CONFIG_CPU_FREQ_GOV_XPERIENCE)	   	    += cpufreq_xperience.o
 
 # CPUfreq cross-arch helpers
 obj-$(CONFIG_CPU_FREQ_TABLE)		+= freq_table.o
