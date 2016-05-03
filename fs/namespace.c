@@ -725,11 +725,8 @@ static struct mount *clone_mnt(struct mount *old, struct dentry *root,
 	struct mount *mnt;
 	int err;
 
-	mnt = alloc_vfsmnt(old->mnt_devname);
-	if (!mnt)
-		return ERR_PTR(-ENOMEM);
-
-	if (flag & (CL_SLAVE | CL_PRIVATE | CL_SHARED_TO_SLAVE))
+	if (mnt) {
+		 if (flag & (CL_SLAVE | CL_PRIVATE | CL_SHARED_TO_SLAVE))
 			mnt->mnt_group_id = 0; /* not a peer of original */
 	else
 			mnt->mnt_group_id = old->mnt_group_id;
@@ -1873,7 +1870,7 @@ unlock:
  * namespace's tree
  */
 static int do_new_mount(struct path *path, const char *fstype, int flags,
-			int mnt_flags, const char *name, void *data)
+			int mnt_flags, char *name, void *data)
 {
 	struct file_system_type *type;
 	struct user_namespace *user_ns;
@@ -2306,10 +2303,10 @@ static struct mnt_namespace *dup_mnt_ns(struct mnt_namespace *mnt_ns,
 	if (user_ns != mnt_ns->user_ns)
 		copy_flags |= CL_SHARED_TO_SLAVE;
 	new = copy_tree(old, old->mnt.mnt_root, copy_flags);
-	if (IS_ERR(new)) {
+	if (!new) {
 		up_write(&namespace_sem);
-		kfree(new_ns);
-		return ERR_CAST(new);
+		free_mnt_ns(new_ns);
+		return ERR_PTR(-ENOMEM);
 	}
 	new_ns->root = new;
 	br_write_lock(&vfsmount_lock);
@@ -2564,7 +2561,7 @@ SYSCALL_DEFINE2(pivot_root, const char __user *, new_root,
 	/* make certain new is below the root */
 	if (!is_path_reachable(new_mnt, new.dentry, &root))
 		goto out4;
-	br_write_lock(&vfsmount_lock);
+	br_write_lock(vfsmount_lock);
 	detach_mnt(new_mnt, &parent_path);
 	detach_mnt(root_mnt, &root_parent);
 	/* mount old root on put_old */

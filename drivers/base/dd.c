@@ -296,6 +296,19 @@ static int really_probe(struct device *dev, struct device_driver *drv)
 		pos = 0;
 #endif
 
+#ifdef CONFIG_MACH_LGE
+	ktime_t bus_stime, bus_etime, drv_stime, drv_etime;
+
+	if (!create_debugfs) {
+		debugfs_probe_time = debugfs_create_file("probe_time",
+							S_IRUGO, NULL, NULL,
+							&probe_time_fops);
+		create_debugfs = 1;
+	}
+	if (pos > sizeof(probe_time) - 100)
+		pos = 0;
+#endif
+
 	atomic_inc(&probe_count);
 	pr_debug("bus: '%s': %s: probing driver %s with device %s\n",
 		 drv->bus->name, __func__, drv->name, dev_name(dev));

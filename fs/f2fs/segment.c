@@ -131,12 +131,10 @@ static inline unsigned long __reverse_ffs(unsigned long word)
 		num += 4;
 	else
 		word >>= 4;
-
 	if ((word & 0xc) == 0)
 		num += 2;
 	else
 		word >>= 2;
-
 	if ((word & 0x2) == 0)
 		num += 1;
 	return num;

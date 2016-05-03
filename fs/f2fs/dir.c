@@ -639,7 +639,7 @@ fail:
 	kunmap(dentry_page);
 	f2fs_put_page(dentry_page, 1);
 out:
-	f2fs_fname_free_filename(&fname);
+	fscrypt_free_filename(&fname);
 	f2fs_update_time(F2FS_I_SB(dir), REQ_TIME);
 	return err;
 }
@@ -906,17 +906,16 @@ static int f2fs_readdir(struct file *file, void *dirent, filldir_t filldir)
 		file->f_pos = (n + 1) * NR_DENTRY_IN_BLOCK;
 		kunmap(dentry_page);
 		f2fs_put_page(dentry_page, 1);
+		dentry_page = NULL;
+	}
+stop:
+	if (dentry_page && !IS_ERR(dentry_page)) {
+		kunmap(dentry_page);
+		f2fs_put_page(dentry_page, 1);
 	}
 out:
 	f2fs_fname_crypto_free_buffer(&fstr);
 	return err;
-}
-
-static int f2fs_dir_open(struct inode *inode, struct file *filp)
-{
-	if (f2fs_encrypted_inode(inode))
-		return f2fs_get_encryption_info(inode) ? -EACCES : 0;
-	return 0;
 }
 
 const struct file_operations f2fs_dir_operations = {
@@ -924,7 +923,6 @@ const struct file_operations f2fs_dir_operations = {
 	.read		= generic_read_dir,
 	.readdir	= f2fs_readdir,
 	.fsync		= f2fs_sync_file,
-	.open		= f2fs_dir_open,
 	.unlocked_ioctl	= f2fs_ioctl,
 #ifdef CONFIG_COMPAT
 	.compat_ioctl   = f2fs_compat_ioctl,

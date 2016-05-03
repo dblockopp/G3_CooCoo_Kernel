@@ -509,9 +509,10 @@ int truncate_data_blocks_range(struct dnode_of_data *dn, int count)
 		 * we will invalidate all blkaddr in the whole range.
 		 */
 		fofs = start_bidx_of_node(ofs_of_node(dn->node_page),
-							dn->inode) + ofs;
+						F2FS_I(dn->inode)) + ofs;
 		f2fs_update_extent_cache_range(dn, fofs, 0, len);
 		dec_valid_block_count(sbi, dn->inode, nr_free);
+		set_page_dirty(dn->node_page);
 		sync_inode_page(dn);
 	}
 	dn->ofs_in_node = ofs;

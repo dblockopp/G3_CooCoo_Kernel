@@ -162,16 +162,61 @@ static const struct usb_device_id usb_quirk_list[] = {
 	{ }  /* terminating entry must be last */
 };
 
-static const struct usb_device_id *find_id(struct usb_device *udev)
-{
-	const struct usb_device_id *id = usb_quirk_list;
+static const struct usb_device_id usb_interface_quirk_list[] = {
+	/* Logitech UVC Cameras */
+	{ USB_VENDOR_AND_INTERFACE_INFO(0x046d, USB_CLASS_VIDEO, 1, 0),
+	  .driver_info = USB_QUIRK_RESET_RESUME },
 
-	for (; id->idVendor || id->bDeviceClass || id->bInterfaceClass ||
-			id->driver_info; id++) {
-		if (usb_match_device(udev, id))
-			return id;
+	/* Protocol and OTG Electrical Test Device */
+	{ USB_DEVICE(0x1a0a, 0x0200), .driver_info =
+			USB_QUIRK_LINEAR_UFRAME_INTR_BINTERVAL },
+
+	{ }  /* terminating entry must be last */
+};
+
+static bool usb_match_any_interface(struct usb_device *udev,
+				    const struct usb_device_id *id)
+{
+	unsigned int i;
+
+	for (i = 0; i < udev->descriptor.bNumConfigurations; ++i) {
+		struct usb_host_config *cfg = &udev->config[i];
+		unsigned int j;
+
+		for (j = 0; j < cfg->desc.bNumInterfaces; ++j) {
+			struct usb_interface_cache *cache;
+			struct usb_host_interface *intf;
+
+			cache = cfg->intf_cache[j];
+			if (cache->num_altsetting == 0)
+				continue;
+
+			intf = &cache->altsetting[0];
+			if (usb_match_one_id_intf(udev, intf, id))
+				return true;
+		}
 	}
-	return NULL;
+
+	return false;
+}
+
+static u32 __usb_detect_quirks(struct usb_device *udev,
+			       const struct usb_device_id *id)
+{
+	u32 quirks = 0;
+
+	for (; id->match_flags; id++) {
+		if (!usb_match_device(udev, id))
+			continue;
+
+		if ((id->match_flags & USB_DEVICE_ID_MATCH_INT_INFO) &&
+		    !usb_match_any_interface(udev, id))
+			continue;
+
+		quirks |= (u32)(id->driver_info);
+	}
+
+	return quirks;
 }
 
 /*
@@ -179,21 +224,16 @@ static const struct usb_device_id *find_id(struct usb_device *udev)
  */
 void usb_detect_quirks(struct usb_device *udev)
 {
-	const struct usb_device_id *id = usb_quirk_list;
-
-	id = find_id(udev);
-	if (id)
-		udev->quirks = (u32)(id->driver_info);
+	udev->quirks = __usb_detect_quirks(udev, usb_quirk_list);
 	if (udev->quirks)
 		dev_dbg(&udev->dev, "USB quirks for this device: %x\n",
-				udev->quirks);
+			udev->quirks);
 
 	/* For the present, all devices default to USB-PERSIST enabled */
 #if 0		/* was: #ifdef CONFIG_PM */
 	/* Hubs are automatically enabled for USB-PERSIST */
 	if (udev->descriptor.bDeviceClass == USB_CLASS_HUB)
 		udev->persist_enabled = 1;
-
 #else
 	/* In the absence of PM, we can safely enable USB-PERSIST
 	 * for all devices.  It will affect things like hub resets
@@ -202,4 +242,17 @@ void usb_detect_quirks(struct usb_device *udev)
 	if (!(udev->quirks & USB_QUIRK_RESET_MORPHS))
 		udev->persist_enabled = 1;
 #endif	/* CONFIG_PM */
+}
+
+void usb_detect_interface_quirks(struct usb_device *udev)
+{
+	u32 quirks;
+
+	quirks = __usb_detect_quirks(udev, usb_interface_quirk_list);
+	if (quirks == 0)
+		return;
+
+	dev_dbg(&udev->dev, "USB interface quirks for this device: %x\n",
+		quirks);
+	udev->quirks |= quirks;
 }

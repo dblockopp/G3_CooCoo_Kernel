@@ -428,6 +428,8 @@ static struct clk *cpu_clk[] = {
 
 static void get_krait_bin_format_b(struct platform_device *pdev,
 					int *speed, int *pvs, int *svs_pvs, int *pvs_ver)
+					int *speed, int *pvs, int *pvs_ver)
+
 {
 	u32 pte_efuse, redundant_sel;
 	struct resource *res;
@@ -709,7 +711,7 @@ ssize_t store_UV_mV_table(struct cpufreq_policy *policy, char *buf,
 		cnt = strlen(size_cur);
 		buf += cnt + 1;
 	}
-	pr_info("krait: regulator: user voltage table modified!\n");
+	pr_warn("faux123: user voltage table modified!\n");
 
 	return ret;
 }
@@ -719,10 +721,10 @@ static int clock_krait_8974_driver_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
 	struct clk *c;
-	int speed, pvs, svs_pvs, pvs_ver, config_ver, rows, cpu = 0;
-	unsigned long *freq = 0, cur_rate, aux_rate;
-	int *uv = 0, *ua = 0;
-	u32 *dscr = 0, vco_mask, config_val;
+	int speed, pvs, pvs_ver, config_ver, rows, cpu;
+	unsigned long *freq, cur_rate, aux_rate;
+	int *uv, *ua;
+	u32 *dscr, vco_mask, config_val;
 	int ret;
 
 	vdd_l2.regulator[0] = devm_regulator_get(dev, "l2-dig");
@@ -809,7 +811,7 @@ static int clock_krait_8974_driver_probe(struct platform_device *pdev)
 		dev_info(&pdev->dev, "PVS config version: %d\n", config_ver);
 	}
 
-	get_krait_bin_format_b(pdev, &speed, &pvs, &svs_pvs, &pvs_ver);
+	get_krait_bin_format_b(pdev, &speed, &pvs, &pvs_ver);
 	snprintf(table_name, ARRAY_SIZE(table_name),
 			"qcom,speed%d-pvs%d-bin-v%d", speed, pvs, pvs_ver);
 

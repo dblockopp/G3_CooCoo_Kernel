@@ -210,7 +210,7 @@ void __init lge_reserve(void)
 		pr_err("Failed to reserve space for hardboot page at 0x%X!\n", start);
 #endif
 
-#if defined(CONFIG_ANDROID_PERSISTENT_RAM)
+#ifdef CONFIG_ANDROID_PERSISTENT_RAM
 	lge_add_persist_ram_devices();
 #endif
 }

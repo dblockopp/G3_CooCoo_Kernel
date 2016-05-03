@@ -733,12 +733,6 @@ static void *f2fs_encrypted_follow_link(struct dentry *dentry,
 		goto errout;
 	}
 
-	/* this is broken symlink case */
-	if (unlikely(cstr.name[0] == 0)) {
-		res = -ENOENT;
-		goto errout;
-	}
-
 	if ((cstr.len + sizeof(struct f2fs_encrypted_symlink_data) - 1) >
 								max_size) {
 		/* Symlink data on the disk is corrupted */
@@ -752,6 +746,12 @@ static void *f2fs_encrypted_follow_link(struct dentry *dentry,
 	res = f2fs_fname_disk_to_usr(inode, NULL, &cstr, &pstr);
 	if (res < 0)
 		goto errout;
+
+	/* this is broken symlink case */
+	if (unlikely(cstr.len == 0)) {
+		res = -ENOENT;
+		goto errout;
+	}
 
 	paddr = pstr.name;
 
@@ -790,7 +790,6 @@ const struct inode_operations f2fs_encrypted_symlink_inode_operations = {
 	.removexattr	= generic_removexattr,
 #endif
 };
-#endif
 
 const struct inode_operations f2fs_dir_inode_operations = {
 	.create		= f2fs_create,

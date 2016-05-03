@@ -1,4 +1,4 @@
-/* Copyright (c) 2011-2013, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2011-2013, 2016, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -2723,4 +2723,3 @@ module_exit(sps_exit);
 
 MODULE_LICENSE("GPL v2");
 MODULE_DESCRIPTION("Smart Peripheral Switch (SPS)");
-

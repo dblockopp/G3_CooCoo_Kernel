@@ -193,7 +193,13 @@ struct ino_entry {
 	nid_t ino;		/* inode number */
 };
 
-/* for the list of inodes to be GCed */
+/*
+ * for the list of directory inodes or gc inodes.
+ * NOTE: there are two slab users for this structure, if we add/modify/delete
+ * fields in structure for one of slab users, it may affect fields or size of
+ * other one, in this condition, it's better to split both of slab and related
+ * data structure.
+ */
 struct inode_entry {
 	struct list_head list;	/* list head */
 	struct inode *inode;	/* vfs inode pointer */
@@ -212,39 +218,40 @@ struct fsync_inode_entry {
 	struct inode *inode;	/* vfs inode pointer */
 	block_t blkaddr;	/* block address locating the last fsync */
 	block_t last_dentry;	/* block address locating the last dentry */
+	block_t last_inode;	/* block address locating the last inode */
 };
 
-#define nats_in_cursum(jnl)		(le16_to_cpu(jnl->n_nats))
-#define sits_in_cursum(jnl)		(le16_to_cpu(jnl->n_sits))
+#define nats_in_cursum(sum)		(le16_to_cpu(sum->n_nats))
+#define sits_in_cursum(sum)		(le16_to_cpu(sum->n_sits))
 
-#define nat_in_journal(jnl, i)		(jnl->nat_j.entries[i].ne)
-#define nid_in_journal(jnl, i)		(jnl->nat_j.entries[i].nid)
-#define sit_in_journal(jnl, i)		(jnl->sit_j.entries[i].se)
-#define segno_in_journal(jnl, i)	(jnl->sit_j.entries[i].segno)
+#define nat_in_journal(sum, i)		(sum->nat_j.entries[i].ne)
+#define nid_in_journal(sum, i)		(sum->nat_j.entries[i].nid)
+#define sit_in_journal(sum, i)		(sum->sit_j.entries[i].se)
+#define segno_in_journal(sum, i)	(sum->sit_j.entries[i].segno)
 
-#define MAX_NAT_JENTRIES(jnl)	(NAT_JOURNAL_ENTRIES - nats_in_cursum(jnl))
-#define MAX_SIT_JENTRIES(jnl)	(SIT_JOURNAL_ENTRIES - sits_in_cursum(jnl))
+#define MAX_NAT_JENTRIES(sum)	(NAT_JOURNAL_ENTRIES - nats_in_cursum(sum))
+#define MAX_SIT_JENTRIES(sum)	(SIT_JOURNAL_ENTRIES - sits_in_cursum(sum))
 
-static inline int update_nats_in_cursum(struct f2fs_journal *journal, int i)
+static inline int update_nats_in_cursum(struct f2fs_summary_block *rs, int i)
 {
-	int before = nats_in_cursum(journal);
-	journal->n_nats = cpu_to_le16(before + i);
+	int before = nats_in_cursum(rs);
+	rs->n_nats = cpu_to_le16(before + i);
 	return before;
 }
 
-static inline int update_sits_in_cursum(struct f2fs_journal *journal, int i)
+static inline int update_sits_in_cursum(struct f2fs_summary_block *rs, int i)
 {
-	int before = sits_in_cursum(journal);
-	journal->n_sits = cpu_to_le16(before + i);
+	int before = sits_in_cursum(rs);
+	rs->n_sits = cpu_to_le16(before + i);
 	return before;
 }
 
-static inline bool __has_cursum_space(struct f2fs_journal *journal,
-							int size, int type)
+static inline bool __has_cursum_space(struct f2fs_summary_block *sum, int size,
+								int type)
 {
 	if (type == NAT_JOURNAL)
-		return size <= MAX_NAT_JENTRIES(journal);
-	return size <= MAX_SIT_JENTRIES(journal);
+		return size <= MAX_NAT_JENTRIES(sum);
+	return size <= MAX_SIT_JENTRIES(sum);
 }
 
 /*
@@ -284,15 +291,9 @@ static inline bool __has_cursum_space(struct f2fs_journal *journal,
 /*
  * ioctl commands in 32 bit emulation
  */
-#define F2FS_IOC32_GETFLAGS		FS_IOC32_GETFLAGS
-#define F2FS_IOC32_SETFLAGS		FS_IOC32_SETFLAGS
-#define F2FS_IOC32_GETVERSION		FS_IOC32_GETVERSION
+#define F2FS_IOC32_GETFLAGS             FS_IOC32_GETFLAGS
+#define F2FS_IOC32_SETFLAGS             FS_IOC32_SETFLAGS
 #endif
-
-struct f2fs_defragment {
-	u64 start;
-	u64 len;
-};
 
 /*
  * For INODE and NODE manager
@@ -385,7 +386,6 @@ struct extent_node {
 	struct rb_node rb_node;		/* rb node located in rb-tree */
 	struct list_head list;		/* node in global extent list of sbi */
 	struct extent_info ei;		/* extent info */
-	struct extent_tree *et;		/* extent tree pointer */
 };
 
 struct extent_tree {
@@ -393,9 +393,9 @@ struct extent_tree {
 	struct rb_root root;		/* root of extent info rb-tree */
 	struct extent_node *cached_en;	/* recently accessed extent node */
 	struct extent_info largest;	/* largested extent info */
-	struct list_head list;		/* to be used by sbi->zombie_list */
 	rwlock_t lock;			/* protect extent info rb-tree */
-	atomic_t node_cnt;		/* # of extent node in rb-tree*/
+	atomic_t refcount;		/* reference count of rb-tree */
+	unsigned int count;		/* # of extent node in rb-tree*/
 };
 
 /*

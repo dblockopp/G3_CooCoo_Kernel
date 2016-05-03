@@ -292,6 +292,7 @@ static void zram_free_page(struct zram *zram, size_t index)
 	struct zram_meta *meta = zram->meta;
 	unsigned long handle = meta->table[index].handle;
 	u16 size = meta->table[index].size;
+<<<<<<< HEAD
 
 	if (unlikely(!handle)) {
 		/*
@@ -309,7 +310,6 @@ static void zram_free_page(struct zram *zram, size_t index)
 		zram->stats.bad_compress--;
 
 	zs_free(meta->mem_pool, handle);
-
 	if (size <= PAGE_SIZE / 2)
 		zram->stats.good_compress--;
 

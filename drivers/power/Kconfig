@@ -622,7 +622,8 @@ config LGE_PM_USB_CURRENT_MAX_MODE
 	default n
 	depends on MACH_LGE
 	help
-		Say Y to enable support for smart charging
+	  Say Y to enable LGE PM USB current max mode
+	  for MST, Auto Testing with USB
 		
 config FORCE_FAST_CHARGE
  	bool "Force fast charging (AC/USB)"
