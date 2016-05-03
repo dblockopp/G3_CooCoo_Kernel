@@ -139,8 +139,7 @@ static int xhci_start(struct xhci_hcd *xhci)
 				"waited %u microseconds.\n",
 				XHCI_MAX_HALT_USEC);
 	if (!ret)
-		xhci->xhc_state &= ~(XHCI_STATE_HALTED | XHCI_STATE_DYING);
-
+		xhci->xhc_state &= ~XHCI_STATE_HALTED;
 	return ret;
 }
 
@@ -927,7 +926,7 @@ int xhci_suspend(struct xhci_hcd *xhci, bool do_wakeup)
 	command &= ~CMD_RUN;
 	xhci_writel(xhci, command, &xhci->op_regs->command);
 	if (handshake(xhci, &xhci->op_regs->status,
-		      STS_HALT, STS_HALT, 100*100)) {
+		      STS_HALT, STS_HALT, XHCI_MAX_HALT_USEC)) {
 		xhci_warn(xhci, "WARN: xHC CMD_RUN timeout\n");
 		spin_unlock_irq(&xhci->lock);
 		return -ETIMEDOUT;
@@ -1530,8 +1529,6 @@ int xhci_urb_dequeue(struct usb_hcd *hcd, struct urb *urb, int status)
 		ep->stop_cmd_timer.expires = jiffies +
 			XHCI_STOP_EP_CMD_TIMEOUT * HZ;
 		add_timer(&ep->stop_cmd_timer);
-		if (hcd->driver->set_autosuspend)
-			hcd->driver->set_autosuspend(hcd, 0);
 		xhci_queue_stop_endpoint(xhci, urb->dev->slot_id, ep_index, 0);
 		xhci_ring_cmd_db(xhci);
 	}
@@ -3303,9 +3300,6 @@ int xhci_discover_or_reset_device(struct usb_hcd *hcd, struct usb_device *udev)
 		else
 			return -EINVAL;
 	}
-
-	if (virt_dev->tt_info)
-		old_active_eps = virt_dev->tt_info->active_eps;
 
 	if (virt_dev->udev != udev) {
 		/* If the virt_dev and the udev does not match, this virt_dev
