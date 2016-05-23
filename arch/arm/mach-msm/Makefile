@@ -57,7 +57,6 @@ ifdef CONFIG_ARCH_MSM8625
 endif
 obj-$(CONFIG_HOTPLUG_CPU) += hotplug.o
 obj-$(CONFIG_BRICKED_HOTPLUG) += bricked_hotplug.o
-obj-$(CONFIG_ALUCARD_HOTPLUG) += alucard_hotplug.o
 obj-$(CONFIG_INTELLI_HOTPLUG) += intelli_hotplug.o
 
 obj-$(CONFIG_MSM_AVS_HW) += avs.o
