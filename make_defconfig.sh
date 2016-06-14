@@ -1,6 +1,6 @@
 #!/bin/bash
 
-for device in shamu; do
+for device in d850; do
 
 DEFCONFIG_FILE=${device}_defconfig
 
