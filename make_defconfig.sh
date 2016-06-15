@@ -10,7 +10,7 @@ if [ ! -e arch/arm/configs/$DEFCONFIG_FILE ]; then
 fi
 
 # make .config
-make ARCH=arm CROSS_COMPILE=arm-eabi- ${DEFCONFIG_FILE} -j18
+make ARCH=arm CROSS_COMPILE=arm-linux-androideabi- ${DEFCONFIG_FILE} -j18
 
 mv .config arch/arm/configs/${DEFCONFIG_FILE}
 done
