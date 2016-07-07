@@ -427,7 +427,6 @@ static struct clk *cpu_clk[] = {
 };
 
 static void get_krait_bin_format_b(struct platform_device *pdev,
-					int *speed, int *pvs, int *svs_pvs, int *pvs_ver)
 					int *speed, int *pvs, int *pvs_ver)
 
 {
