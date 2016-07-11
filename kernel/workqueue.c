@@ -3678,7 +3678,7 @@ err_destroy:
 	return NOTIFY_BAD;
 }
 
-*
+/*
  * Workqueues should be brought up before normal priority CPU notifiers.
  * This will be registered high priority CPU notifier.
  */
