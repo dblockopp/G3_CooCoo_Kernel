@@ -3,7 +3,6 @@
 # Linux/arm 3.4.112 Kernel Configuration
 # CooCoo Kernel for the LG G3, beta version 1
 #
-CONFIG_ADRENO_IDLER=y
 CONFIG_SIMPLE_GPU_ALGORITHM=y
 CONFIG_ARM=y
 CONFIG_ARM_HAS_SG_CHAIN=y
