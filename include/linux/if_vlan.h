@@ -122,6 +122,8 @@ static inline u16 vlan_dev_vlan_id(const struct net_device *dev)
 
 static inline bool vlan_do_receive(struct sk_buff **skb, bool last_handler)
 {
+	if (((*skb)->vlan_tci & VLAN_VID_MASK) && last_handler)
+		(*skb)->pkt_type = PACKET_OTHERHOST;
 	return false;
 }
 
