@@ -161,7 +161,7 @@ int ip_build_and_send_pkt(struct sk_buff *skb, struct sock *sk,
 	iph->daddr    = (opt && opt->opt.srr ? opt->opt.faddr : daddr);
 	iph->saddr    = saddr;
 	iph->protocol = sk->sk_protocol;
-	ip_select_ident(iph, &rt->dst, sk);
+	ip_select_ident(skb, sk);
 
 	if (opt && opt->opt.optlen) {
 		iph->ihl += opt->opt.optlen>>2;
@@ -269,7 +269,6 @@ int ip_mc_output(struct sk_buff *skb)
 		   by ip_mr_input in any case.
 		   Note, that local frames are looped back to be delivered
 		   to local recipients.
-
 		   This check is duplicated in ip_mr_input at the moment.
 		 */
 		    &&
@@ -845,7 +844,7 @@ static int __ip_append_data(struct sock *sk,
 		csummode = CHECKSUM_PARTIAL;
 
 	cork->length += length;
-	if (((length > mtu) || (skb && skb_is_gso(skb))) &&
+	if (((length > mtu) || (skb && skb_has_frags(skb))) &&
 	    (sk->sk_protocol == IPPROTO_UDP) &&
 	    (rt->dst.dev->features & NETIF_F_UFO) && !rt->dst.header_len) {
 		err = ip_ufo_append_data(sk, queue, getfrag, from, length,
@@ -1511,7 +1510,6 @@ void ip_send_reply(struct sock *sk, struct sk_buff *skb, __be32 daddr,
 		return;
 
 	/* And let IP do all the hard work.
-
 	   This chunk is not reenterable, hence spinlock.
 	   Note that it uses the fact, that this function is called
 	   with locally disabled BH and that sk cannot be already spinlocked.
