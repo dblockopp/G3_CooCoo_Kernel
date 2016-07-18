@@ -2124,7 +2124,7 @@ static bool can_checksum_protocol(netdev_features_t features, __be16 protocol)
 static netdev_features_t harmonize_features(struct sk_buff *skb,
 	__be16 protocol, netdev_features_t features)
 {
-	if (skb->ip_summed != CHECKSUM_NONE &&        
+	if (skb->ip_summed != CHECKSUM_NONE &&
 		!can_checksum_protocol(features, protocol)) {
 		features &= ~NETIF_F_ALL_CSUM;
 		features &= ~NETIF_F_SG;
@@ -2310,7 +2310,7 @@ u16 __skb_tx_hash(const struct net_device *dev, const struct sk_buff *skb,
 	if (skb->sk && skb->sk->sk_hash)
 		hash = skb->sk->sk_hash;
 	else
-		hash = (__force u16) skb->protocol ^ skb->rxhash;
+		hash = (__force u16) skb->protocol;
 	hash = jhash_1word(hash, hashrnd);
 
 	return (u16) (((u64) hash * qcount) >> 32) + qoffset;
@@ -2625,7 +2625,7 @@ void __skb_get_rxhash(struct sk_buff *skb)
 
 	if (keys.ports)
 		skb->l4_rxhash = 1;
-	
+
 	/* get a consistent hash (same value on both flow directions) */
 	if (((__force u32)keys.dst < (__force u32)keys.src) ||
 	        (((__force u32)keys.dst == (__force u32)keys.src) &&
@@ -4449,7 +4449,7 @@ static void dev_change_rx_flags(struct net_device *dev, int flags)
 {
 	const struct net_device_ops *ops = dev->netdev_ops;
 
-	if ((dev->flags & IFF_UP) && ops->ndo_change_rx_flags)
+	if (ops->ndo_change_rx_flags)
 		ops->ndo_change_rx_flags(dev, flags);
 }
 
