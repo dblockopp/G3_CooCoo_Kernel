@@ -1573,10 +1573,10 @@ static int unix_dgram_sendmsg(struct kiocb *kiocb, struct socket *sock,
 	int err;
 	unsigned hash;
 	struct sk_buff *skb;
-	long timeo = 0;
+	long timeo;
 	struct scm_cookie tmp_scm;
-	int max_level = 0;
-	int sk_locked = 0;
+	int max_level;
+	int sk_locked;
 
 	if (NULL == siocb->scm)
 		siocb->scm = &tmp_scm;
