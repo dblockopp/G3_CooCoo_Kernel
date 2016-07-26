@@ -24,7 +24,6 @@
 #include <linux/kthread.h>
 #include <linux/mutex.h>
 #include <linux/freezer.h>
-#include <linux/random.h>
 #include <linux/usb/otg.h>
 
 #include <asm/uaccess.h>
@@ -1677,10 +1676,8 @@ void usb_set_device_state(struct usb_device *udev,
 					|| new_state == USB_STATE_SUSPENDED)
 				;	/* No change to wakeup settings */
 			else if (new_state == USB_STATE_CONFIGURED)
-				wakeup = (udev->quirks &
-					USB_QUIRK_IGNORE_REMOTE_WAKEUP) ? 0 :
-					udev->actconfig->desc.bmAttributes &
-					USB_CONFIG_ATT_WAKEUP;
+				wakeup = udev->actconfig->desc.bmAttributes
+					 & USB_CONFIG_ATT_WAKEUP;
 			else
 				wakeup = 0;
 		}
@@ -2251,10 +2248,11 @@ static unsigned hub_is_wusb(struct usb_hub *hub)
 #define HUB_LONG_RESET_TIME	200
 #define HUB_RESET_TIMEOUT	800
 
-/* Is a USB 3.0 port in the Inactive or Complinance Mode state?
- * Port worm reset is required to recover
- */
-static bool hub_port_warm_reset_required(struct usb_hub *hub, u16 portstatus)
+static int hub_port_reset(struct usb_hub *hub, int port1,
+			struct usb_device *udev, unsigned int delay, bool warm);
+
+/* Is a USB 3.0 port in the Inactive state? */
+static bool hub_port_inactive(struct usb_hub *hub, u16 portstatus))
 {
 	return hub_is_superspeed(hub->hdev) &&
 		(portstatus & USB_PORT_STAT_LINK_STATE) ==
@@ -2264,9 +2262,9 @@ static bool hub_port_warm_reset_required(struct usb_hub *hub, u16 portstatus)
 static int hub_port_wait_reset(struct usb_hub *hub, int port1,
 			struct usb_device *udev, unsigned int delay, bool warm)
 {
-	int delay_time = 0, ret = 0;
-	u16 portstatus = 0;
-	u16 portchange = 0;
+	int delay_time, ret;
+	u16 portstatus;
+	u16 portchange;
 
 	for (delay_time = 0;
 			delay_time < HUB_RESET_TIMEOUT;
@@ -2438,39 +2436,8 @@ static int hub_port_reset(struct usb_hub *hub, int port1,
 
 		/* return on disconnect or reset */
 		if (status == 0 || status == -ENOTCONN || status == -ENODEV) {
-			clear_port_feature(hub->hdev, port1,
-					USB_PORT_FEAT_C_RESET);
-
-			if (!hub_is_superspeed(hub->hdev))
-				goto done;
-
-			clear_port_feature(hub->hdev, port1,
-					USB_PORT_FEAT_C_BH_PORT_RESET);
-			clear_port_feature(hub->hdev, port1,
-					USB_PORT_FEAT_C_PORT_LINK_STATE);
-			clear_port_feature(hub->hdev, port1,
-					USB_PORT_FEAT_C_CONNECTION);
-
-			/*
-			 * If a USB 3.0 device migrates from reset to an error
-			 * state, re-issue the warm reset.
-			 */
-			if (hub_port_status(hub, port1,
-					&portstatus, &portchange) < 0)
-				goto done;
-
-			if (!hub_port_warm_reset_required(hub, portstatus))
-				goto done;
-
-			/*
-			 * If the port is in SS.Inactive or Compliance Mode, the
-			 * hot or warm reset failed.  Try another warm reset.
-			 */
-			if (!warm) {
-				dev_dbg(hub->intfdev, "hot reset failed, warm reset port %d\n",
-						port1);
-				warm = true;
-			}
+			hub_port_finish_reset(hub, port1, udev, &status, warm);
+			goto done;
 		}
 
 		dev_dbg (hub->intfdev,
@@ -2874,8 +2841,8 @@ int usb_port_resume(struct usb_device *udev, pm_message_t msg)
 {
 	struct usb_hub	*hub = hdev_to_hub(udev->parent);
 	int		port1 = udev->portnum;
-	int		status = 0;
-	u16		portchange = 0, portstatus = 0;
+	int		status;
+	u16		portchange, portstatus;
 
 	/* Skip the initial Clear-Suspend step for a remote wakeup */
 	status = hub_port_status(hub, port1, &portstatus, &portchange);
@@ -2981,7 +2948,7 @@ int usb_port_resume(struct usb_device *udev, pm_message_t msg)
 	struct usb_hub	*hub = hdev_to_hub(udev->parent);
 	int		port1 = udev->portnum;
 	int		status;
-	u16		portchange = 0, portstatus = 0;
+	u16		portchange, portstatus;
 
 	status = hub_port_status(hub, port1, &portstatus, &portchange);
 	status = check_port_resume_type(udev,
@@ -3097,9 +3064,9 @@ EXPORT_SYMBOL_GPL(usb_root_hub_lost_power);
  */
 static int hub_port_debounce(struct usb_hub *hub, int port1)
 {
-	int ret = 0;
-	int total_time = 0, stable_time = 0;
-	u16 portchange = 0, portstatus = 0;
+	int ret;
+	int total_time, stable_time = 0;
+	u16 portchange, portstatus;
 	unsigned connection = 0xffff;
 
 	for (total_time = 0; ; total_time += HUB_DEBOUNCE_STEP) {
@@ -3869,10 +3836,10 @@ static void hub_events(void)
 	struct usb_interface *intf;
 	struct usb_hub *hub;
 	struct device *hub_dev;
-	u16 hubstatus = 0;
-	u16 hubchange = 0;
-	u16 portstatus = 0;
-	u16 portchange = 0;
+	u16 hubstatus;
+	u16 hubchange;
+	u16 portstatus;
+	u16 portchange;
 	int i, ret;
 #if defined(CONFIG_USB_PEHCI_HCD) || defined(CONFIG_USB_PEHCI_HCD_MODULE)
 	int j;
