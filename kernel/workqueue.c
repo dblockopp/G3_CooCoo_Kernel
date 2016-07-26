@@ -1473,12 +1473,6 @@ static void destroy_worker(struct worker *worker)
 	 */
 	get_task_struct(worker->task);
 
-	/*
-	 * Once WORKER_DIE is set, the kworker may destroy itself at any
-	 * point.  Pin to ensure the task stays until we're done with it.
-	 */
-	get_task_struct(worker->task);
-
 	list_del_init(&worker->entry);
 	worker->flags |= WORKER_DIE;
 
@@ -1755,15 +1749,6 @@ static void move_linked_works(struct work_struct *work, struct list_head *head,
 	 */
 	if (nextp)
 		*nextp = n;
-}
-
-static void cwq_activate_delayed_work(struct work_struct *work)
-{
-	struct cpu_workqueue_struct *cwq = get_work_cwq(work);
-	trace_workqueue_activate_work(work);
-	move_linked_works(work, &cwq->pool->worklist, NULL);
-	__clear_bit(WORK_STRUCT_DELAYED_BIT, work_data_bits(work));
-	cwq->nr_active++;
 }
 
 static void cwq_activate_first_delayed(struct cpu_workqueue_struct *cwq)
@@ -3582,7 +3567,7 @@ __acquires(&gcwq->lock)
 	}
 }
 
-static int workqueue_cpu_callback(struct notifier_block *nfb,
+static int __devinit workqueue_cpu_callback(struct notifier_block *nfb,
 						unsigned long action,
 						void *hcpu)
 {
