@@ -558,7 +558,7 @@ void ping_err(struct sk_buff *skb, int offset, u32 info)
 			err = EREMOTEIO;
 			break;
 		}
-		#if IS_ENABLED(CONFIG_IPV6)
+#if IS_ENABLED(CONFIG_IPV6)
 	} else if (skb->protocol == htons(ETH_P_IPV6)) {
 		harderr = pingv6_ops.icmpv6_err_convert(type, code, &err);
 #endif
@@ -687,7 +687,7 @@ int ping_common_sendmsg(int family, struct msghdr *msg, size_t len,
 	if (!ping_supported(family, type, code))
 		return -EINVAL;
 
-return 0;
+	return 0;
 }
 EXPORT_SYMBOL_GPL(ping_common_sendmsg);
 
@@ -849,7 +849,7 @@ do_confirm:
 }
 
 int ping_recvmsg(struct kiocb *iocb, struct sock *sk, struct msghdr *msg,
-			size_t len, int noblock, int flags, int *addr_len)
+		size_t len, int noblock, int flags, int *addr_len)
 {
 	struct inet_sock *isk = inet_sk(sk);
 	int family = sk->sk_family;
@@ -936,7 +936,7 @@ int ping_recvmsg(struct kiocb *iocb, struct sock *sk, struct msghdr *msg,
 	} else {
 		BUG();
 	}
-	
+
 	err = copied;
 
 done:
