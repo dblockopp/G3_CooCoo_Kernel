@@ -411,7 +411,7 @@ int xhci_init(struct usb_hcd *hcd)
 	}
 	retval = xhci_mem_init(xhci, GFP_KERNEL);
 	xhci_dbg(xhci, "Finished xhci_init\n");
-	
+
 	return retval;
 }
 
