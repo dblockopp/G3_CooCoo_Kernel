@@ -75,7 +75,6 @@ EXPORT_SYMBOL_GPL(ip6t_alloc_initial_table);
    only need to read-lock in the softirq; doing a write_lock_bh() in user
    context stops packets coming through and allows user context to read
    the counters or update the rules.
-
    Hence the start of any table is given by get_table() below.  */
 
 /* Returns whether matches rule or not. */
@@ -349,6 +348,11 @@ ip6t_do_table(struct sk_buff *skb,
 	local_bh_disable();
 	addend = xt_write_recseq_begin();
 	private = table->private;
+	/*
+	 * Ensure we load private-> members after we've fetched the base
+	 * pointer.
+	 */
+	smp_read_barrier_depends();
 	cpu        = smp_processor_id();
 	table_base = private->entries[cpu];
 	jumpstack  = (struct ip6t_entry **)private->jumpstack[cpu];
@@ -2282,16 +2286,15 @@ static void __exit ip6_tables_fini(void)
  * "No next header".
  *
  * If target header is found, its offset is set in *offset and return protocol
- * number. Otherwise, return -1.
+ * number. Otherwise, return -ENOENT or -EBADMSG.
  *
  * If the first fragment doesn't contain the final protocol header or
  * NEXTHDR_NONE it is considered invalid.
  *
  * Note that non-1st fragment is special case that "the protocol number
  * of last header" is "next header" field in Fragment header. In this case,
- * *offset is meaningless and fragment offset is stored in *fragoff if fragoff
- * isn't NULL.
- *
+ * *offset is meaningless. If fragoff is not NULL, the fragment offset is
+ * stored in *fragoff; if it is NULL, return -EINVAL.
  */
 int ipv6_find_hdr(const struct sk_buff *skb, unsigned int *offset,
 		  int target, unsigned short *fragoff)
@@ -2332,9 +2335,12 @@ int ipv6_find_hdr(const struct sk_buff *skb, unsigned int *offset,
 				if (target < 0 &&
 				    ((!ipv6_ext_hdr(hp->nexthdr)) ||
 				     hp->nexthdr == NEXTHDR_NONE)) {
-					if (fragoff)
+					if (fragoff) {
 						*fragoff = _frag_off;
 					return hp->nexthdr;
+					} else {
+						return -EINVAL;
+					}
 				}
 				return -ENOENT;
 			}
