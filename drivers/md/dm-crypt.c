@@ -867,7 +867,7 @@ static struct dm_crypt_io *crypt_io_alloc(struct dm_target *ti,
 	io->sector = sector;
 	io->error = 0;
 	io->base_io = NULL;
-
+	io->ctx.req = NULL;
 	atomic_set(&io->pending, 0);
 
 	return io;
@@ -894,7 +894,7 @@ static void crypt_dec_pending(struct dm_crypt_io *io)
 		return;
 
 	if (io->ctx.req)
-		mempool_free(io->ctx.req, cc->req_pool);	
+		mempool_free(io->ctx.req, cc->req_pool);
 	mempool_free(io, cc->io_pool);
 
 	if (likely(!base_io))
@@ -1340,7 +1340,7 @@ static int crypt_wipe_key(struct crypt_config *cc)
 static void crypt_dtr(struct dm_target *ti)
 {
 	struct crypt_config *cc = ti->private;
-	
+
 	ti->private = NULL;
 
 	if (!cc)
@@ -1422,7 +1422,7 @@ static int crypt_ctr_cipher(struct dm_target *ti,
 
 	if (tmp)
 		DMWARN("Ignoring unexpected additional cipher options");
-	
+
 	/*
 	 * For compatibility with the original dm-crypt mapping format, if
 	 * only the cipher name is supplied, use cbc-plain.
