@@ -148,13 +148,6 @@ config CPU_FREQ_DEFAULT_GOV_WAVE
 	select CPU_FREQ_GOV_WAVE
 	help
 
-config CPU_FREQ_DEFAULT_GOV_SLIM
-	bool "slim"
-	select CPU_FREQ_GOV_SLIM
-	select CPU_FREQ_GOV_PERFORMANCE
-	help
-	  Use the CPUFreq governor 'slim' as default.
-
 config CPU_FREQ_DEFAULT_GOV_LIONHEART
 	bool "lionheart"
 	select CPU_FREQ_GOV_LIONHEART
@@ -485,19 +478,6 @@ config CPU_FREQ_GOV_WAVE
 	tristate "'wave' cpufreq governor"
 	depends on CPU_FREQ
 	help
-
-config CPU_FREQ_GOV_SLIM
-	tristate "'slim' cpufreq policy governor"
-	select CPU_FREQ_TABLE
-	help
-	  'slim' - This driver adds a dynamic cpufreq policy governor.
-
-	  To compile this driver as a module, choose M here: the
-	  module will be called cpufreq_slim.
-
-	  For details, take a look at linux/Documentation/cpu-freq.
-
-	  If in doubt, say N.
 
 config CPU_FREQ_GOV_LIONHEART
 	tristate "'lionheart' cpufreq governor"
