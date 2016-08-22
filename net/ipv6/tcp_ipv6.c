@@ -1493,17 +1493,17 @@ static int tcp_v6_do_rcv(struct sock *sk, struct sk_buff *skb)
 	 */
 
 	/* Do Stevens' IPV6_PKTOPTIONS.
-	 *
-	 *  Yes, guys, it is the only place in our code, where we
-	 *  may make it not affecting IPv4.
-	 *  The rest of code is protocol independent,
-	 *  and I do not like idea to uglify IPv4.
+	 
+	    Yes, guys, it is the only place in our code, where we
+	    may make it not affecting IPv4.
+	    The rest of code is protocol independent,
+	    and I do not like idea to uglify IPv4.
 
-	 *  Actually, all the idea behind IPV6_PKTOPTIONS
-	 *  looks not very well thought. For now we latch
-	 *  options, received in the last packet, enqueued
-	 *  by tcp. Feel free to propose better solution.
-	 *			       --ANK (980728)
+	    Actually, all the idea behind IPV6_PKTOPTIONS
+	    looks not very well thought. For now we latch
+	    options, received in the last packet, enqueued
+	    by tcp. Feel free to propose better solution.
+	  			       --ANK (980728)
 	 */
 	if (np->rxopt.all)
 		opt_skb = skb_clone(skb, GFP_ATOMIC);
