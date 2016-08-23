@@ -1489,11 +1489,6 @@ struct xhci_hcd {
 #define XHCI_RESET_ON_RESUME	(1 << 7)
 #define	XHCI_SW_BW_CHECKING	(1 << 8)
 #define XHCI_AMD_0x96_HOST	(1 << 9)
-#define XHCI_TRUST_TX_LENGTH	(1 << 10)
-#define XHCI_SPURIOUS_REBOOT	(1 << 13)
-#define XHCI_COMP_MODE_QUIRK	(1 << 14)
-#define XHCI_AVOID_BEI		(1 << 15)
-#define XHCI_PLAT		(1 << 16)
 /*
  * In Synopsis DWC3 controller, PORTSC register access involves multiple clock
  * domains. When the software does a PORTSC write, handshakes are needed
@@ -1733,7 +1728,7 @@ void xhci_shutdown(struct usb_hcd *hcd);
 int xhci_gen_setup(struct usb_hcd *hcd, xhci_get_quirks_t get_quirks);
 
 #ifdef	CONFIG_PM
-int xhci_suspend(struct xhci_hcd *xhci, bool do_wakeup);
+int xhci_suspend(struct xhci_hcd *xhci);
 int xhci_resume(struct xhci_hcd *xhci, bool hibernated);
 #else
 #define	xhci_suspend	NULL
