@@ -85,11 +85,11 @@ struct flowi4 {
 } __attribute__((__aligned__(BITS_PER_LONG/8)));
 
 static inline void flowi4_init_output(struct flowi4 *fl4, int oif,
-				      __u32 mark, __u8 tos, __u8 scope,
-				      __u8 proto, __u8 flags,
-				      __be32 daddr, __be32 saddr,
-				      __be16 dport, __be16 sport,
-				      uid_t uid)
+				__u32 mark, __u8 tos, __u8 scope,
+			        __u8 proto, __u8 flags,
+				__be32 daddr, __be32 saddr,
+				__be16 dport, __be16 sport,
+				uid_t uid)
 {
 	fl4->flowi4_oif = oif;
 	fl4->flowi4_iif = LOOPBACK_IFINDEX;
