@@ -109,6 +109,7 @@
 #include <net/rtnetlink.h>
 #ifdef CONFIG_SYSCTL
 #include <linux/sysctl.h>
+#include <linux/kmemleak.h>
 #endif
 #include <net/secure_seq.h>
 
@@ -970,11 +971,9 @@ static void rt_emergency_hash_rebuild(struct net *net)
 
 /*
    Short description of GC goals.
-
    We want to build algorithm, which will keep routing cache
    at some equilibrium point, when number of aged off entries
    is kept approximately equal to newly generated ones.
-
    Current expiration strength is variable "expire".
    We try to adjust it dynamically, so that if networking
    is idle expires is large enough to keep enough of warm entries,
@@ -1067,7 +1066,6 @@ static void __do_rt_garbage_collect(int elasticity, int min_interval)
 			goto work_done;
 
 		/* Goal is not achieved. We stop process if:
-
 		   - if expire reduced to zero. Otherwise, expire is halfed.
 		   - if table is not full.
 		   - if we are called from interrupt.
@@ -1889,7 +1887,6 @@ static int ip_rt_bug(struct sk_buff *skb)
    We do not cache source address of outgoing interface,
    because it is used only by IP RR, TS and SRR options,
    so that it out of fast path.
-
    BTW remember: "addr" is allowed to be not aligned
    in IP options!
  */
@@ -2779,7 +2776,6 @@ static struct rtable *ip_route_output_slow(struct net *net, struct flowi4 *fl4)
 		if (fl4->flowi4_oif) {
 			/* Apparently, routing tables are wrong. Assume,
 			   that the destination is on link.
-
 			   WHY? DW.
 			   Because we are allowed to send to iface
 			   even if it has NO routes and NO assigned
@@ -2789,8 +2785,6 @@ static struct rtable *ip_route_output_slow(struct net *net, struct flowi4 *fl4)
 			   direct. Moreover, if MSG_DONTROUTE is set,
 			   we send packet, ignoring both routing tables
 			   and ifaddr state. --ANK
-
-
 			   We could make it even if oif is unknown,
 			   likely IPv6, but we do not.
 			 */
